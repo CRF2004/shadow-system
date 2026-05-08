@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Shadow CLI - 暗影君主系统 v0.3.0
+Shadow CLI - 暗影君主系统 v0.4.0
 个人成长游戏化工具
 
 Usage:
@@ -90,6 +90,13 @@ from engine import (
     summon_legion,
     check_achievements,
     get_achievement_status,
+)
+from integrations import (
+    import_health_json, import_health_csv, import_health_export,
+    record_health_manual, get_health_summary,
+    import_reading_json, import_reading_csv,
+    record_reading_manual, get_reading_summary,
+    import_browser_data, record_browser_manual, get_browser_summary,
 )
 
 
@@ -884,6 +891,203 @@ def cmd_inventory(player: dict) -> str:
     return "\n".join(lines)
 
 
+# ── Integration Commands ──────────────────────────────────────────────────
+
+def cmd_health_import(player: dict, file_path: str) -> str:
+    """Import health data from JSON/CSV file."""
+    result = import_health_json(player, file_path)
+    if not result["success"]:
+        return result["message"]
+    save_player(player)
+    output = result["message"]
+    if result.get("messages"):
+        output += "\n" + "\n".join(result["messages"])
+    return output
+
+
+def cmd_health_manual(player: dict, steps: int = 0, exercise_min: int = 0, sleep_hours: float = 0) -> str:
+    """Manually record health data."""
+    result = record_health_manual(player, steps, exercise_min, sleep_hours)
+    if not result["success"]:
+        return result["message"]
+    save_player(player)
+    return result["message"]
+
+
+def cmd_health_summary(player: dict, days: int = 7) -> str:
+    """Show health data summary."""
+    summary = get_health_summary(player, days)
+    lines = [
+        "┌──────────────────────────────────────────┐",
+        "│  🏃 健康数据概要                           │",
+        "├──────────────────────────────────────────┤",
+        f"│  统计范围: 最近 {days} 天                     │",
+        f"│  有数据天数: {summary['days_with_data']}                       │",
+        "├──────────────────────────────────────────┤",
+        f"│  总步数: {summary['total_steps']}                        │",
+        f"│  日均步数: {summary['avg_steps']}                        │",
+        f"│  总运动: {summary['total_exercise_min']} 分钟                    │",
+        f"│  总睡眠: {summary['total_sleep_hours']} 小时                   │",
+        "├──────────────────────────────────────────┤",
+        f"│  获得 EXP: {summary['total_exp']}                      │",
+        f"│  导入次数: {summary['recent_imports']}                       │",
+        "└──────────────────────────────────────────┘",
+    ]
+    return "\n".join(lines)
+
+
+def cmd_reading_import(player: dict, file_path: str) -> str:
+    """Import reading data from JSON/CSV file."""
+    result = import_reading_json(player, file_path)
+    if not result["success"]:
+        return result["message"]
+    save_player(player)
+    output = result["message"]
+    if result.get("messages"):
+        output += "\n" + "\n".join(result["messages"])
+    return output
+
+
+def cmd_reading_manual(player: dict, minutes: int = 0, pages: int = 0, book_title: str = "") -> str:
+    """Manually record reading data."""
+    result = record_reading_manual(player, minutes, pages, book_title)
+    if not result["success"]:
+        return result["message"]
+    save_player(player)
+    return result["message"]
+
+
+def cmd_reading_summary(player: dict, days: int = 7) -> str:
+    """Show reading data summary."""
+    summary = get_reading_summary(player, days)
+    lines = [
+        "┌──────────────────────────────────────────┐",
+        "│  📖 阅读数据概要                           │",
+        "├──────────────────────────────────────────┤",
+        f"│  统计范围: 最近 {days} 天                     │",
+        f"│  有数据天数: {summary['days_with_data']}                       │",
+        "├──────────────────────────────────────────┤",
+        f"│  总时长: {summary['total_minutes']} 分钟                   │",
+        f"│  总页数: {summary['total_pages']}                        │",
+        f"│  日均: {summary['avg_minutes_per_day']} 分钟/天                  │",
+        "├──────────────────────────────────────────┤",
+        f"│  获得 EXP: {summary['total_exp']}                      │",
+        f"│  导入次数: {summary['recent_imports']}                       │",
+    ]
+    if summary.get("books_read"):
+        books_str = ", ".join(summary["books_read"][:3])
+        lines.append(f"│  已读: {books_str:<19} │")
+    lines.append("└──────────────────────────────────────────┘")
+    return "\n".join(lines)
+
+
+def cmd_browser_import(player: dict, file_path: str) -> str:
+    """Import browser activity data from JSON file."""
+    result = import_browser_data(player, file_path)
+    if not result["success"]:
+        return result["message"]
+    save_player(player)
+    output = result["message"]
+    if result.get("messages"):
+        output += "\n" + "\n".join(result["messages"])
+    return output
+
+
+def cmd_browser_manual(player: dict, site: str, minutes: int) -> str:
+    """Manually record browser study time."""
+    result = record_browser_manual(player, site, minutes)
+    if not result["success"]:
+        return result["message"]
+    save_player(player)
+    return result["message"]
+
+
+def cmd_browser_summary(player: dict, days: int = 7) -> str:
+    """Show browser activity summary."""
+    summary = get_browser_summary(player, days)
+    lines = [
+        "┌──────────────────────────────────────────┐",
+        "│  🌐 浏览器活动概要                         │",
+        "├──────────────────────────────────────────┤",
+        f"│  统计范围: 最近 {days} 天                     │",
+        f"│  有数据天数: {summary['days_with_data']}                       │",
+        "├──────────────────────────────────────────┤",
+        f"│  总学习时长: {summary['total_minutes']} 分钟                │",
+        f"│  获得 EXP: {summary['total_exp']}                      │",
+        f"│  导入次数: {summary['recent_imports']}                       │",
+    ]
+    site_breakdown = summary.get("site_breakdown", {})
+    if site_breakdown:
+        lines.append("│                                          │")
+        lines.append("│  站点分布:                                │")
+        for site, mins in list(site_breakdown.items())[:5]:
+            site_name = site[:16]
+            lines.append(f"│    {site_name:<18} {mins}min            │")
+    lines.append("└──────────────────────────────────────────┘")
+    return "\n".join(lines)
+
+
+def cmd_integrations(player: dict, action: str | None = None, target: str | None = None) -> str:
+    """Show or manage integration settings."""
+    settings = player.get("integrationSettings", {})
+    health_on = settings.get("health_enabled", False)
+    reading_on = settings.get("reading_enabled", False)
+    browser_on = settings.get("browser_enabled", False)
+
+    if action == "enable" and target:
+        if target == "health":
+            settings["health_enabled"] = True
+        elif target == "reading":
+            settings["reading_enabled"] = True
+        elif target == "browser":
+            settings["browser_enabled"] = True
+        else:
+            return f"❌ 未知集成类型: {target}\n可用: health, reading, browser"
+        player["integrationSettings"] = settings
+        save_player(player)
+        return f"✅ 已启用 {target} 集成"
+
+    elif action == "disable" and target:
+        if target == "health":
+            settings["health_enabled"] = False
+        elif target == "reading":
+            settings["reading_enabled"] = False
+        elif target == "browser":
+            settings["browser_enabled"] = False
+        else:
+            return f"❌ 未知集成类型: {target}\n可用: health, reading, browser"
+        player["integrationSettings"] = settings
+        save_player(player)
+        return f"⏸ 已停用 {target} 集成"
+
+    # Show status
+    health_icon = "✅" if health_on else "⏸"
+    reading_icon = "✅" if reading_on else "⏸"
+    browser_icon = "✅" if browser_on else "⏸"
+
+    total_imports = len(player.get("importHistory", []))
+
+    lines = [
+        "┌──────────────────────────────────────────┐",
+        "│  🔗 外部集成状态                          │",
+        "├──────────────────────────────────────────┤",
+        f"│  {health_icon} 健康数据 (health)                      │",
+        f"│  {reading_icon} 阅读数据 (reading)                     │",
+        f"│  {browser_icon} 浏览器活动 (browser)                  │",
+        "├──────────────────────────────────────────┤",
+        f"│  总导入次数: {total_imports}                      │",
+        "├──────────────────────────────────────────┤",
+        "│  用法:                                    │",
+        "│  shadow health import <file>              │",
+        "│  shadow reading import <file>             │",
+        "│  shadow browser import <file>             │",
+        "│  shadow integrations enable <type>        │",
+        "│  shadow integrations disable <type>       │",
+        "└──────────────────────────────────────────┘",
+    ]
+    return "\n".join(lines)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Shadow CLI - 暗影君主系统",
@@ -990,6 +1194,52 @@ def main():
     # inventory
     subparsers.add_parser("inventory", help="查看背包")
 
+    # health import
+    health_import_parser = subparsers.add_parser("health-import", help="导入健康数据")
+    health_import_parser.add_argument("file", help="JSON/CSV 文件路径")
+
+    # health manual
+    health_manual_parser = subparsers.add_parser("health-manual", help="手动记录健康数据")
+    health_manual_parser.add_argument("steps", nargs="?", type=int, default=0, help="步数")
+    health_manual_parser.add_argument("--exercise", type=int, default=0, help="运动分钟")
+    health_manual_parser.add_argument("--sleep", type=float, default=0, help="睡眠小时")
+
+    # health summary
+    health_summary_parser = subparsers.add_parser("health-summary", help="查看健康数据概要")
+    health_summary_parser.add_argument("--days", type=int, default=7, help="统计天数")
+
+    # reading import
+    reading_import_parser = subparsers.add_parser("reading-import", help="导入阅读数据")
+    reading_import_parser.add_argument("file", help="JSON/CSV 文件路径")
+
+    # reading manual
+    reading_manual_parser = subparsers.add_parser("reading-manual", help="手动记录阅读数据")
+    reading_manual_parser.add_argument("minutes", nargs="?", type=int, default=0, help="阅读分钟")
+    reading_manual_parser.add_argument("--pages", type=int, default=0, help="页数")
+    reading_manual_parser.add_argument("--book", type=str, default="", help="书名")
+
+    # reading summary
+    reading_summary_parser = subparsers.add_parser("reading-summary", help="查看阅读数据概要")
+    reading_summary_parser.add_argument("--days", type=int, default=7, help="统计天数")
+
+    # browser import
+    browser_import_parser = subparsers.add_parser("browser-import", help="导入浏览器活动数据")
+    browser_import_parser.add_argument("file", help="JSON 文件路径")
+
+    # browser manual
+    browser_manual_parser = subparsers.add_parser("browser-manual", help="手动记录浏览器学习")
+    browser_manual_parser.add_argument("site", help="网站域名")
+    browser_manual_parser.add_argument("minutes", type=int, help="学习分钟")
+
+    # browser summary
+    browser_summary_parser = subparsers.add_parser("browser-summary", help="查看浏览器活动概要")
+    browser_summary_parser.add_argument("--days", type=int, default=7, help="统计天数")
+
+    # integrations
+    int_parser = subparsers.add_parser("integrations", help="查看/管理集成状态")
+    int_parser.add_argument("action", nargs="?", help="操作: enable/disable")
+    int_parser.add_argument("target", nargs="?", help="目标: health/reading/browser")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -1079,6 +1329,36 @@ def main():
 
     elif args.command == "inventory":
         print(cmd_inventory(player))
+
+    elif args.command == "health-import":
+        print(cmd_health_import(player, args.file))
+
+    elif args.command == "health-manual":
+        print(cmd_health_manual(player, args.steps, args.exercise, args.sleep))
+
+    elif args.command == "health-summary":
+        print(cmd_health_summary(player, args.days))
+
+    elif args.command == "reading-import":
+        print(cmd_reading_import(player, args.file))
+
+    elif args.command == "reading-manual":
+        print(cmd_reading_manual(player, args.minutes, args.pages, args.book))
+
+    elif args.command == "reading-summary":
+        print(cmd_reading_summary(player, args.days))
+
+    elif args.command == "browser-import":
+        print(cmd_browser_import(player, args.file))
+
+    elif args.command == "browser-manual":
+        print(cmd_browser_manual(player, args.site, args.minutes))
+
+    elif args.command == "browser-summary":
+        print(cmd_browser_summary(player, args.days))
+
+    elif args.command == "integrations":
+        print(cmd_integrations(player, args.action, args.target))
 
 
 if __name__ == "__main__":

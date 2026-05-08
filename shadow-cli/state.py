@@ -12,7 +12,7 @@ import config
 
 def _ensure_dirs():
     """Create state directories if they don't exist."""
-    for d in [config.STATE_DIR, config.QUESTS_DIR, config.SOLDIERS_DIR, config.LOGS_DIR]:
+    for d in [config.STATE_DIR, config.QUESTS_DIR, config.SOLDIERS_DIR, config.LOGS_DIR, config.INTEGRATIONS_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
 
@@ -48,6 +48,15 @@ def create_default_player() -> dict:
         "commitCount": 0,
         "doubleExpNext": 0,
         "extraDungeonToday": 0,
+        "importHistory": [],
+        "healthData": {},
+        "readingData": {},
+        "browserData": {},
+        "integrationSettings": {
+            "health_enabled": False,
+            "reading_enabled": False,
+            "browser_enabled": False,
+        },
         "createdAt": now,
         "lastActive": now,
         "lastDaily": None,

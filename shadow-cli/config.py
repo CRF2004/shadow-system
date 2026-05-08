@@ -11,9 +11,10 @@ PLAYER_FILE = STATE_DIR / "player.json"
 QUESTS_DIR = STATE_DIR / "quests"
 SOLDIERS_DIR = STATE_DIR / "soldiers"
 LOGS_DIR = STATE_DIR / "logs"
+INTEGRATIONS_DIR = STATE_DIR / "integrations"
 
 # Core constants
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 BASE_EXP = 100
 EXP_MULTIPLIER = 1.5
 STAT_POINTS_PER_LEVEL = 3
@@ -117,6 +118,32 @@ LEGION_SCALES = {
     "large":  {"name": "大型远征军 (7 人)", "mp": 250, "count": 7},
     "full":   {"name": "全盛暗影大军 (12+)", "mp": 400, "count": 12},
 }
+
+# ── Integration System ────────────────────────────────────────────────────
+
+# Health data EXP conversion rates
+HEALTH_EXP = {
+    "steps_per_exp": 100,         # 100 steps = 1 EXP
+    "exercise_minute_exp": 2,      # 1 min exercise = 2 EXP
+    "sleep_hour_exp": 5,           # 1 hour sleep = 5 EXP
+    "daily_health_cap": 200,       # Max EXP per day from health
+}
+
+# Reading data EXP conversion rates
+READING_EXP = {
+    "minute_exp": 1,               # 1 min reading = 1 EXP
+    "page_exp": 1,                 # 1 page = 1 EXP
+    "daily_reading_cap": 150,      # Max EXP per day from reading
+}
+
+# Browser activity EXP conversion rates
+BROWSER_EXP = {
+    "study_minute_exp": 2,         # 1 min study = 2 EXP
+    "daily_browser_cap": 100,      # Max EXP per day from browser
+}
+
+# Integration types
+INTEGRATION_TYPES = ["health", "reading", "browser"]
 
 # ── Achievement System ──────────────────────────────────────────────────
 
