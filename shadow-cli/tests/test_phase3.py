@@ -101,15 +101,17 @@ class TestDungeonProgress(unittest.TestCase):
 
     def test_progress_dungeon_with_active(self):
         """Active dungeon should progress."""
+        import random
         from dungeon import generate_dungeon_instance, progress_dungeon
         p = create_default_player()
 
-        # Create a dungeon instance
+        # Seed to ensure deterministic task selection that includes a commit task
+        random.seed(42)
         result = generate_dungeon_instance("code_dungeon", p)
         self.assertTrue(result["success"])
 
-        # Progress the dungeon
-        prog = progress_dungeon(p, "commit", 2)
+        # Progress the dungeon — use 'coding' since code_dungeon always has coding tasks
+        prog = progress_dungeon(p, "coding", 10)
         self.assertGreater(len(prog["progress"]), 0)
 
 
@@ -269,16 +271,18 @@ class TestPhase3Integration(unittest.TestCase):
 
     def test_dungeon_workflow(self):
         """Test complete dungeon workflow: enter → progress → complete."""
+        import random
         from dungeon import generate_dungeon_instance, progress_dungeon, claim_dungeon_reward
         from engine import add_exp
         p = create_default_player()
 
+        random.seed(42)
         # Enter dungeon
         result = generate_dungeon_instance("code_dungeon", p)
         self.assertTrue(result["success"])
 
-        # Progress by committing
-        prog = progress_dungeon(p, "commit", 2)
+        # Progress by coding (code_dungeon always has coding tasks)
+        prog = progress_dungeon(p, "coding", 10)
         # Some progress should have been made
         self.assertGreater(len(prog["progress"]), 0)
 
