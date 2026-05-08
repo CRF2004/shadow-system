@@ -1,0 +1,36 @@
+{
+  "name": "shadow",
+  "description": "暗影君主系统 - 我独自升级风格的角色成长系统",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "string",
+        "enum": [
+          "help",
+          "status",
+          "analyze",
+          "plan",
+          "execute",
+          "monitor",
+          "summon",
+          "deploy",
+          "archive",
+          "legion",
+          "add",
+          "daily"
+        ],
+        "description": "要执行的 shadow 命令"
+      },
+      "target": {
+        "type": "string",
+        "description": "目标项目路径、任务描述或属性名"
+      },
+      "options": {
+        "type": "string",
+        "description": "额外选项参数 (数量、类型等)"
+      }
+    }
+  },
+  "handler": "shadowHandler"
+}

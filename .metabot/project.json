@@ -1,0 +1,18 @@
+{
+  "name": "shadow-system",
+  "path": "/mnt/chengrongfeng_private/cc_dump/shadow-system",
+  "description": "个人成长游戏化系统 - 通过完成真实任务获取经验值，升级角色、解锁能力",
+  "status": "active",
+  "customFields": {
+    "priority": "medium",
+    "currentPhase": "Phase 0",
+    "currentTask": "核心循环验证 - 已完成",
+    "progress": "Phase 0.1-0.5 已完成 (脚手架、状态管理、引擎、手动打卡、经验公式单元测试、状态持久化验证)",
+    "blockers": [],
+    "nextAction": "Phase 0 完成，等待用户决策是否进入 Phase 1",
+    "estimatedHours": "N/A - Phase 0 done",
+    "lastPushDate": "2026-05-08"
+  },
+  "createdAt": "2026-05-04T10:00:00.000Z",
+  "updatedAt": "2026-05-08T01:17:51.539Z"
+}
