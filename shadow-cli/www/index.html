@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shadow CLI - 暗影君主</title>
+<style>
+/* ── Reset & Base ────────────────────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a12;--card:#12121f;--border:#2a2a3a;
+  --gold:#ffd700;--red:#ff4757;--blue:#3742fa;--green:#2ed573;
+  --purple:#a855f7;--cyan:#06b6d4;--orange:#ff8c00;
+  --text:#e0e0e8;--dim:#6b7280;
+}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+h1,h2,h3{font-weight:600}
+
+/* ── Layout ─────────────────────────────────────────────── */
+.app{display:grid;grid-template-columns:220px 1fr;grid-template-rows:56px 1fr;min-height:100vh}
+@media(max-width:768px){
+  .app{grid-template-columns:1fr;grid-template-rows:56px 1fr 56px}
+  .sidebar{grid-row:auto;grid-column:1/-1;display:flex;overflow-x:auto;border-bottom:1px solid var(--border);border-right:none}
+  .sidebar .logo{display:none}
+  .sidebar nav{flex:1}
+  .main{padding-bottom:64px}
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+.header{grid-column:1/-1;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;z-index:10}
+.header .logo{font-size:18px;font-weight:700;color:var(--gold)}
+.header .logo span{color:var(--dim);font-size:12px;margin-left:6px}
+.header .right{margin-left:auto;display:flex;align-items:center;gap:16px;font-size:13px}
+.header .gold-icon{color:var(--gold)}
+
+/* ── Sidebar ────────────────────────────────────────────── */
+.sidebar{background:var(--card);border-right:1px solid var(--border);padding:16px 0;overflow-y:auto}
+.sidebar .logo{padding:0 16px 16px;font-size:16px;font-weight:700;color:var(--gold);border-bottom:1px solid var(--border);margin-bottom:8px}
+.sidebar nav a{display:flex;align-items:center;gap:10px;padding:10px 16px;color:var(--dim);text-decoration:none;font-size:14px;transition:all .15s;border-left:3px solid transparent;cursor:pointer}
+.sidebar nav a:hover{background:rgba(255,215,0,.05);color:var(--text)}
+.sidebar nav a.active{color:var(--gold);border-left-color:var(--gold);background:rgba(255,215,0,.08)}
+.sidebar nav a .icon{width:20px;text-align:center}
+
+/* ── Main ───────────────────────────────────────────────── */
+.main{padding:24px;overflow-y:auto}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* ── Cards ──────────────────────────────────────────────── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+.card-title{font-size:14px;color:var(--dim);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
+.card h3{font-size:16px;margin-bottom:12px}
+
+/* ── Grid helpers ───────────────────────────────────────── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:768px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+
+/* ── Stat bars ──────────────────────────────────────────── */
+.bar-wrap{background:#1a1a2e;border-radius:6px;height:20px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:6px;transition:width .5s ease;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+.bar-fill.hp{background:linear-gradient(90deg,#ff4757,#ff6b81)}
+.bar-fill.mp{background:linear-gradient(90deg,#3742fa,#5f6aff)}
+.bar-fill.exp{background:linear-gradient(90deg,#ffd700,#ffaa00)}
+.bar-fill.gold-bar{background:linear-gradient(90deg,#ff8c00,#ffa500)}
+
+/* ── Big stats ──────────────────────────────────────────── */
+.stat-big{text-align:center;padding:16px}
+.stat-big .value{font-size:28px;font-weight:700;color:var(--gold)}
+.stat-big .label{font-size:12px;color:var(--dim);margin-top:4px}
+
+/* ── Buttons ────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:13px;cursor:pointer;transition:all .15s}
+.btn:hover{border-color:var(--gold);color:var(--gold);box-shadow:0 0 12px rgba(255,215,0,.15)}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--gold);color:#000;border-color:var(--gold);font-weight:600}
+.btn-primary:hover{background:#ffec44;box-shadow:0 0 16px rgba(255,215,0,.3)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-danger{border-color:var(--red);color:var(--red)}
+.btn-danger:hover{background:rgba(255,71,87,.1)}
+.btn-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+
+/* ── Task items ─────────────────────────────────────────── */
+.task-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;margin-bottom:8px}
+.task-item .check{width:24px;height:24px;border:2px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.task-item.completed .check{background:var(--green);border-color:var(--green);color:#fff}
+.task-item .info{flex:1}
+.task-item .info .name{font-size:14px}
+.task-item .info .detail{font-size:12px;color:var(--dim)}
+.task-item .reward{font-size:12px;color:var(--gold);white-space:nowrap}
+.task-item .diff{font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.08)}
+
+/* ── Achievement grid ───────────────────────────────────── */
+.ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.ach-card{padding:16px;border:1px solid var(--border);border-radius:10px;text-align:center;transition:all .2s}
+.ach-card.unlocked{border-color:var(--gold);background:rgba(255,215,0,.05)}
+.ach-card.locked{opacity:.5;border-color:var(--border)}
+.ach-card .icon{font-size:28px;margin-bottom:8px}
+.ach-card .name{font-size:14px;font-weight:600}
+.ach-card .desc{font-size:11px;color:var(--dim);margin-top:4px}
+.ach-card .reward{font-size:11px;color:var(--gold);margin-top:6px}
+
+/* ── Shop items ─────────────────────────────────────────── */
+.shop-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;margin-bottom:8px}
+.shop-item .s-icon{font-size:24px;width:40px;text-align:center}
+.shop-item .s-info{flex:1}
+.shop-item .s-info .s-name{font-size:14px;font-weight:600}
+.shop-item .s-info .s-desc{font-size:12px;color:var(--dim)}
+.shop-item .s-price{font-size:13px;color:var(--gold);white-space:nowrap}
+.shop-item .s-req{font-size:10px;color:var(--purple);margin-left:4px}
+
+/* ── Boss ───────────────────────────────────────────────── */
+.boss-card{display:flex;align-items:center;gap:16px;padding:16px;background:rgba(255,71,87,.05);border:1px solid rgba(255,71,87,.3);border-radius:10px;margin-bottom:12px}
+.boss-card.defeated{opacity:.5;border-color:var(--green)}
+.boss-card .b-icon{font-size:32px}
+.boss-card .b-info{flex:1}
+.boss-card .b-name{font-size:16px;font-weight:700;color:var(--red)}
+.boss-card.defeated .b-name{color:var(--green)}
+.boss-card .b-desc{font-size:12px;color:var(--dim);margin-top:2px}
+.boss-card .b-reward{font-size:12px;color:var(--gold);margin-top:4px}
+
+/* ── Form inputs ────────────────────────────────────────── */
+.input-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.input-row label{font-size:13px;color:var(--dim);min-width:60px}
+.input-row input,.input-row select{background:#1a1a2e;border:1px solid var(--border);border-radius:6px;padding:6px 12px;color:var(--text);font-size:13px;outline:none}
+.input-row input:focus,.input-row select:focus{border-color:var(--gold)}
+
+/* ── Toast notifications ────────────────────────────────── */
+#toast-container{position:fixed;top:70px;right:20px;z-index:1000;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 20px;border-radius:8px;font-size:13px;animation:slideIn .3s ease;max-width:360px}
+.toast.success{background:rgba(46,213,115,.15);border:1px solid var(--green);color:var(--green)}
+.toast.error{background:rgba(255,71,87,.15);border:1px solid var(--red);color:var(--red)}
+.toast.info{background:rgba(55,66,250,.15);border:1px solid var(--blue);color:var(--blue)}
+.toast.levelup{background:rgba(255,215,0,.15);border:1px solid var(--gold);color:var(--gold);font-weight:600}
+@keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ── Misc ───────────────────────────────────────────────── */
+.loading{text-align:center;padding:40px;color:var(--dim)}
+.empty{text-align:center;padding:20px;color:var(--dim);font-size:13px}
+.mt-12{margin-top:12px}
+.mt-16{margin-top:16px}
+.mb-8{margin-bottom:8px}
+.text-gold{color:var(--gold)}
+.text-green{color:var(--green)}
+.text-red{color:var(--red)}
+.text-blue{color:var(--blue)}
+.text-dim{color:var(--dim)}
+
+/* ── Section title ──────────────────────────────────────── */
+.section-title{font-size:20px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+.section-title .emoji{font-size:24px}
+
+/* ── Stat row ───────────────────────────────────────────── */
+.stat-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.stat-row:last-child{border-bottom:none}
+.stat-row .stat-label{width:80px;font-size:13px;color:var(--dim)}
+.stat-row .stat-value{font-size:18px;font-weight:700;color:var(--gold)}
+.stat-row .stat-bar{flex:1}
+.stat-row .alloc-btns{display:flex;gap:4px}
+
+/* ── Integration panel ──────────────────────────────────── */
+.int-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.int-row:last-child{border-bottom:none}
+.int-row .int-icon{font-size:20px;width:32px;text-align:center}
+.int-row .int-info{flex:1}
+.int-row .int-name{font-size:14px;font-weight:600}
+.int-row .int-desc{font-size:11px;color:var(--dim)}
+.int-row .int-status{font-size:12px;padding:4px 8px;border-radius:4px}
+.int-row .int-status.on{background:rgba(46,213,115,.15);color:var(--green)}
+.int-row .int-status.off{background:rgba(255,255,255,.05);color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">Shadow CLI <span id="header-ver"></span></div>
+    <div class="right">
+      <span class="gold-icon">金币: <b id="header-gold">0</b></span>
+      <span>宝石: <b id="header-gems">0</b></span>
+      <span>连击: <b id="header-streak">0</b>天</span>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo">⚔️ 暗影君主</div>
+    <nav id="nav">
+      <a class="active" data-tab="dashboard"><span class="icon">🏠</span> 仪表盘</a>
+      <a data-tab="tasks"><span class="icon">📋</span> 每日任务</a>
+      <a data-tab="actions"><span class="icon">⚡</span> 快捷操作</a>
+      <a data-tab="achievements"><span class="icon">🏆</span> 成就</a>
+      <a data-tab="shop"><span class="icon">🏪</span> 商店</a>
+      <a data-tab="army"><span class="icon">⚔️</span> 士兵</a>
+      <a data-tab="dungeons"><span class="icon">🏰</span> 副本</a>
+      <a data-tab="bosses"><span class="icon">💀</span> Boss</a>
+      <a data-tab="integrations"><span class="icon">🔗</span> 集成</a>
+    </nav>
+  </div>
+
+  <!-- Main content -->
+  <div class="main">
+
+    <!-- Dashboard -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="section-title"><span class="emoji">⚔️</span> 角色状态</div>
+      <div class="grid-4" id="dash-stats"></div>
+      <div class="card mt-16" id="dash-bars"></div>
+      <div class="grid-2 mt-16" id="dash-stats-row"></div>
+    </div>
+
+    <!-- Tasks -->
+    <div class="tab-content" id="tab-tasks">
+      <div class="section-title"><span class="emoji">📋</span> 每日任务 <span id="task-date" class="text-dim" style="font-size:14px;margin-left:12px"></span></div>
+      <div class="card" id="task-list"></div>
+      <div class="btn-group" id="task-actions"></div>
+    </div>
+
+    <!-- Actions -->
+    <div class="tab-content" id="tab-actions">
+      <div class="section-title"><span class="emoji">⚡</span> 快捷操作</div>
+      <div class="card">
+        <h3>记录行为</h3>
+        <div class="input-row">
+          <label>类型</label>
+          <select id="rec-type">
+            <option value="commit">Commit 代码提交</option>
+            <option value="coding">Coding 编码</option>
+            <option value="vocabulary">Vocabulary 背单词</option>
+            <option value="exercise">Exercise 运动</option>
+            <option value="reading">Reading 阅读</option>
+          </select>
+        </div>
+        <div class="input-row">
+          <label>数量</label>
+          <input type="number" id="rec-qty" value="1" min="1" style="width:80px">
+        </div>
+        <button class="btn btn-primary" onclick="doRecord()">记录行为</button>
+      </div>
+      <div class="card">
+        <h3>分配属性点</h3>
+        <div class="input-row">
+          <label>属性</label>
+          <select id="alloc-stat">
+            <option value="str">力量 STR</option>
+            <option value="agi">敏捷 AGI</option>
+            <option value="sen">感知 SEN</option>
+            <option value="vit">体力 VIT</option>
+            <option value="int">智力 INT</option>
+          </select>
+        </div>
+        <div class="input-row">
+          <label>数量</label>
+          <input type="number" id="alloc-amt" value="1" min="1" style="width:80px">
+        </div>
+        <button class="btn btn-primary" onclick="doAllocate()">分配</button>
+      </div>
+      <div class="card">
+        <h3>召唤士兵</h3>
+        <div class="input-row">
+          <label>类型</label>
+          <select id="summon-type">
+            <option value="">随机召唤</option>
+            <option value="explore">🔍 虚空行者</option>
+            <option value="plan">🧭 战略家</option>
+            <option value="dev">🔨 构造者</option>
+            <option value="test">🧪 试炼官</option>
+            <option value="debug">🩺 诊断师</option>
+            <option value="review">⚖️ 审判者</option>
+            <option value="doc">📝 书记官</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="doSummon()">召唤</button>
+        <button class="btn" onclick="doLegion('small')" style="margin-left:8px">小型军团 (3人)</button>
+        <button class="btn" onclick="doLegion('medium')">中型军团 (5人)</button>
+        <button class="btn" onclick="doLegion('large')">大型远征 (7人)</button>
+      </div>
+      <div class="card">
+        <h3>Git / 文件扫描</h3>
+        <button class="btn" onclick="doScanGit()">扫描 Git 提交</button>
+        <button class="btn" onclick="doScanFiles()" style="margin-left:8px">扫描文件变更</button>
+      </div>
+    </div>
+
+    <!-- Achievements -->
+    <div class="tab-content" id="tab-achievements">
+      <div class="section-title"><span class="emoji">🏆</span> 成就</div>
+      <div class="ach-grid" id="ach-list"></div>
+    </div>
+
+    <!-- Shop -->
+    <div class="tab-content" id="tab-shop">
+      <div class="section-title"><span class="emoji">🏪</span> 暗影商店</div>
+      <div class="input-row mb-8">
+        <label>分类</label>
+        <select id="shop-cat" onchange="loadShop()">
+          <option value="">全部</option>
+          <option value="consumable">消耗品</option>
+          <option value="equipment">装备</option>
+          <option value="appearance">外观</option>
+          <option value="functional">功能</option>
+        </select>
+      </div>
+      <div id="shop-list"></div>
+    </div>
+
+    <!-- Army -->
+    <div class="tab-content" id="tab-army">
+      <div class="section-title"><span class="icon">⚔️</span> 暗影士兵</div>
+      <div class="card" id="army-list"></div>
+    </div>
+
+    <!-- Dungeons -->
+    <div class="tab-content" id="tab-dungeons">
+      <div class="section-title"><span class="emoji">🏰</span> 副本</div>
+      <div id="dungeon-list"></div>
+    </div>
+
+    <!-- Bosses -->
+    <div class="tab-content" id="tab-bosses">
+      <div class="section-title"><span class="emoji">💀</span> Boss 列表</div>
+      <div id="boss-list"></div>
+    </div>
+
+    <!-- Integrations -->
+    <div class="tab-content" id="tab-integrations">
+      <div class="section-title"><span class="emoji">🔗</span> 外部集成</div>
+      <div class="card" id="int-status"></div>
+      <div class="grid-3 mt-16" id="int-actions"></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+const API = '/api';
+
+/* ── Toast ──────────────────────────────────────────────── */
+function toast(msg, type='info'){
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+/* ── Tab navigation ─────────────────────────────────────── */
+document.querySelectorAll('#nav a').forEach(a => {
+  a.addEventListener('click', () => {
+    document.querySelectorAll('#nav a').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + a.dataset.tab).classList.add('active');
+    // Load tab data
+    const tab = a.dataset.tab;
+    if(tab==='dashboard') loadDashboard();
+    else if(tab==='tasks') loadTasks();
+    else if(tab==='achievements') loadAchievements();
+    else if(tab==='shop') loadShop();
+    else if(tab==='army') loadArmy();
+    else if(tab==='dungeons') loadDungeons();
+    else if(tab==='bosses') loadBosses();
+    else if(tab==='integrations') loadIntegrations();
+  });
+});
+
+/* ── Fetch helpers ──────────────────────────────────────── */
+async function apiGet(path){
+  const r = await fetch(API + path);
+  return r.json();
+}
+async function apiPost(path, body){
+  const r = await fetch(API + path, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+/* ── Dashboard ──────────────────────────────────────────── */
+async function loadDashboard(){
+  const s = await apiGet('/status');
+  document.getElementById('header-ver').textContent = 'v' + s.version;
+  document.getElementById('header-gold').textContent = s.gold;
+  document.getElementById('header-gems').textContent = s.gems;
+  document.getElementById('header-streak').textContent = s.streak;
+
+  // Big stats
+  const statsEl = document.getElementById('dash-stats');
+  statsEl.innerHTML = `
+    <div class="card stat-big"><div class="value">LV.${s.level}</div><div class="label">等级</div></div>
+    <div class="card stat-big"><div class="value" style="color:var(--purple)">${s.title}</div><div class="label">称号</div></div>
+    <div class="card stat-big"><div class="value">${s.power}</div><div class="label">战力</div></div>
+    <div class="card stat-big"><div class="value">${s.gold}</div><div class="label">金币</div></div>
+  `;
+
+  // Bars
+  const barsEl = document.getElementById('dash-bars');
+  barsEl.innerHTML = `
+    <div class="card-title">状态条</div>
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span>HP</span><span>${s.hp}/100</span>
+      </div>
+      <div class="bar-wrap"><div class="bar-fill hp" style="width:${s.hp}%"></div></div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span>MP</span><span>${s.mp}/100</span>
+      </div>
+      <div class="bar-wrap"><div class="bar-fill mp" style="width:${s.mp}%"></div></div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span>EXP</span><span>${s.exp}/${s.expToNext} (${s.expPct}%)</span>
+      </div>
+      <div class="bar-wrap"><div class="bar-fill exp" style="width:${s.expPct}%"></div></div>
+    </div>
+  `;
+
+  // Stats row
+  const rowEl = document.getElementById('dash-stats-row');
+  const stats = s.stats;
+  const names = {strength:'力量 STR',agility:'敏捷 AGI',sense:'感知 SEN',vitality:'体力 VIT',intelligence:'智力 INT'};
+  let html = '<div class="card"><h3>属性</h3>';
+  if(s.statPoints > 0) html += `<div class="text-gold mb-8">可用属性点: ${s.statPoints}</div>`;
+  for(const [k,v] of Object.entries(stats)){
+    html += `<div class="stat-row">
+      <span class="stat-label">${names[k]||k}</span>
+      <span class="stat-value">${v}</span>
+      <div class="bar-wrap stat-bar" style="height:8px"><div class="bar-fill exp" style="width:${Math.min(v*2,100)}%"></div></div>
+    </div>`;
+  }
+  html += '</div>';
+
+  html += '<div class="card"><h3>概览</h3>';
+  const overview = [
+    ['总EXP', s.totalExp], ['Commit数', s.commitCount],
+    ['士兵', s.soldierCount], ['成就', `${s.achievementCount}/${s.achievementTotal}`],
+    ['Boss击破', s.bossesDefeated], ['背包物品', s.inventoryCount],
+    ['连击', s.streak + '天'], ['COMBO', s.combo],
+  ];
+  for(const [label,val] of overview){
+    html += `<div class="stat-row"><span class="stat-label">${label}</span><span class="stat-value">${val}</span></div>`;
+  }
+  html += '</div>';
+  rowEl.innerHTML = html;
+}
+
+/* ── Tasks ──────────────────────────────────────────────── */
+async function loadTasks(){
+  const d = await apiGet('/tasks');
+  document.getElementById('task-date').textContent = d.date;
+  const list = document.getElementById('task-list');
+  if(!d.tasks.length){
+    list.innerHTML = '<div class="empty">暂无任务</div>';
+    return;
+  }
+  let html = '';
+  let completed = 0;
+  for(const t of d.tasks){
+    const cls = t.status==='completed' ? 'completed' : '';
+    if(t.status==='completed') completed++;
+    const diffColor = {E:'#6b7280',D:'#2ed573',C:'#3742fa',B:'#a855f7',A:'#ff4757',S:'#ffd700'}[t.difficulty]||'#6b7280';
+    html += `<div class="task-item ${cls}">
+      <div class="check">${t.status==='completed'?'✓':''}</div>
+      <div class="info">
+        <div class="name">${t.name}</div>
+        <div class="detail">${t.current}/${t.target}</div>
+      </div>
+      <span class="diff" style="color:${diffColor};border:1px solid ${diffColor}">${t.difficulty}</span>
+      <span class="reward">+${t.reward} EXP</span>
+    </div>`;
+  }
+  list.innerHTML = html;
+
+  const total = d.tasks.length;
+  const actions = document.getElementById('task-actions');
+  if(completed === total && total > 0){
+    actions.innerHTML = '<button class="btn btn-primary" onclick="doClaimDaily()">领取奖励</button>';
+  } else {
+    actions.innerHTML = `<span class="text-dim">进度: ${completed}/${total} | 总奖励: ${d.tasks.reduce((a,t)=>a+t.reward,0)} EXP</span>`;
+  }
+}
+
+async function doClaimDaily(){
+  const r = await apiPost('/claim-daily', {});
+  if(r.messages) r.messages.forEach(m => toast(m, 'levelup'));
+  if(r.achievements) r.achievements.forEach(a => toast(`成就: ${a.name}`, 'success'));
+  toast('每日奖励已领取！', 'success');
+  loadTasks();
+  loadDashboard();
+}
+
+/* ── Actions ────────────────────────────────────────────── */
+async function doRecord(){
+  const type = document.getElementById('rec-type').value;
+  const qty = parseInt(document.getElementById('rec-qty').value) || 1;
+  const r = await apiPost('/record', {type, quantity: qty});
+  if(r.success){
+    toast(`+${r.exp} EXP`, 'success');
+    if(r.levelups) r.levelups.forEach(m => toast(m, 'levelup'));
+    if(r.achievements) r.achievements.forEach(a => toast(`成就: ${a.name}`, 'success'));
+    if(r.bossesDefeated) r.bossesDefeated.forEach(b => toast(`Boss击破: ${b.name}`, 'error'));
+    loadDashboard();
+  } else {
+    toast(r.message, 'error');
+  }
+}
+
+async function doAllocate(){
+  const stat = document.getElementById('alloc-stat').value;
+  const amt = parseInt(document.getElementById('alloc-amt').value) || 1;
+  const r = await apiPost('/allocate-stat', {stat, amount: amt});
+  if(r.success){
+    toast('属性分配成功！', 'success');
+    loadDashboard();
+  } else {
+    toast(r.message, 'error');
+  }
+}
+
+async function doSummon(){
+  const type = document.getElementById('summon-type').value || null;
+  const r = await apiPost('/summon', {type});
+  if(r.success){
+    toast(r.message, r.obtained ? 'levelup' : 'info');
+    loadDashboard();
+  } else {
+    toast(r.message, 'error');
+  }
+}
+
+async function doLegion(scale){
+  const r = await apiPost('/legion', {scale});
+  if(r.success){
+    toast(r.message, r.soldiers_obtained > 0 ? 'levelup' : 'info');
+    loadDashboard();
+  } else {
+    toast(r.message, 'error');
+  }
+}
+
+async function doScanGit(){
+  const r = await apiPost('/scan-git', {});
+  if(r.success){
+    toast(r.message, 'success');
+    loadDashboard();
+  } else {
+    toast(r.message, 'error');
+  }
+}
+
+async function doScanFiles(){
+  const r = await apiPost('/scan-files', {});
+  if(r.success){
+    toast(r.message, 'success');
+    loadDashboard();
+  } else {
+    toast(r.message, 'error');
+  }
+}
+
+/* ── Achievements ───────────────────────────────────────── */
+async function loadAchievements(){
+  const d = await apiGet('/achievements');
+  const list = document.getElementById('ach-list');
+  let html = '';
+  for(const a of d.achievements){
+    const cls = a.unlocked ? 'unlocked' : 'locked';
+    const icon = a.unlocked ? '🏆' : '🔒';
+    html += `<div class="ach-card ${cls}">
+      <div class="icon">${icon}</div>
+      <div class="name">${a.name}</div>
+      <div class="desc">${a.description}</div>
+      <div class="reward">+${a.reward_exp} EXP, +${a.reward_gold} 金币</div>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+/* ── Shop ───────────────────────────────────────────────── */
+async function loadShop(){
+  const cat = document.getElementById('shop-cat').value;
+  const d = await apiGet('/shop' + (cat ? '?category=' + cat : ''));
+  document.getElementById('header-gold').textContent = d.gold;
+  const list = document.getElementById('shop-list');
+  if(!d.items.length){
+    list.innerHTML = '<div class="empty">暂无商品 (提高等级解锁)</div>';
+    return;
+  }
+  const catNames = {consumable:'消耗品',equipment:'装备',appearance:'外观',functional:'功能'};
+  let currentCat = null, html = '';
+  for(const item of d.items){
+    if(item.category !== currentCat){
+      currentCat = item.category;
+      html += `<div class="card-title mt-16">${catNames[currentCat]||currentCat}</div>`;
+    }
+    const icon = {consumable:'🧪',equipment:'⚔️',appearance:'👑',functional:'⚙️'}[item.category]||'📦';
+    const req = item.level_requirement > 1 ? `<span class="s-req">LV.${item.level_requirement}</span>` : '';
+    html += `<div class="shop-item">
+      <div class="s-icon">${icon}</div>
+      <div class="s-info">
+        <div class="s-name">${item.name} ${req}</div>
+        <div class="s-desc">${item.description}</div>
+      </div>
+      <div class="s-price">${item.price} 金币</div>
+      <button class="btn btn-sm btn-primary" onclick="doBuy('${item.id}')">购买</button>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+async function doBuy(id){
+  const r = await apiPost('/buy', {id});
+  if(r.success){
+    toast(r.message, 'success');
+    loadShop();
+    loadDashboard();
+  } else {
+    toast(r.message, 'error');
+  }
+}
+
+/* ── Army ───────────────────────────────────────────────── */
+async function loadArmy(){
+  const d = await apiGet('/army');
+  const list = document.getElementById('army-list');
+  if(!d.soldiers.length){
+    list.innerHTML = '<div class="empty">暂无士兵 (使用快捷操作召唤)</div>';
+    return;
+  }
+  let html = '';
+  for(let i = 0; i < d.soldiers.length; i++){
+    const s = d.soldiers[i];
+    html += `<div class="task-item">
+      <div class="check" style="background:var(--purple);border:none">${i+1}</div>
+      <div class="info">
+        <div class="name">${s.name}</div>
+        <div class="detail">LV.${s.level} [${s.type}]</div>
+      </div>
+      <span class="text-dim">${s.obtainedAt||''}</span>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+/* ── Dungeons ───────────────────────────────────────────── */
+async function loadDungeons(){
+  const d = await apiGet('/dungeons');
+  const list = document.getElementById('dungeon-list');
+  if(!d.dungeons.length){
+    list.innerHTML = '<div class="empty">暂无可用副本</div>';
+    return;
+  }
+  let html = '';
+  for(const dg of d.dungeons){
+    const typeIcon = {daily:'📅',weekly:'🔄',boss:'💀'}[dg.type]||'📋';
+    html += `<div class="card">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:28px">${typeIcon}</span>
+        <div style="flex:1">
+          <div style="font-size:16px;font-weight:700">${dg.name}</div>
+          <div class="text-dim">${dg.description} (${dg.type})</div>
+        </div>
+        <button class="btn btn-primary" onclick="doEnterDungeon('${dg.id}')">进入</button>
+      </div>
+      <div class="btn-group">
+        ${dg.tasks.map(t => `<span class="text-dim">${t.name} (${t.type} x${t.target})</span>`).join(' · ')}
+      </div>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+async function doEnterDungeon(id){
+  const r = await apiPost('/enter-dungeon', {id});
+  if(r.success){
+    toast(`进入副本: ${r.instance.dungeon_name} [${r.instance.difficulty}]`, 'levelup');
+    toast(`+${r.entry_exp} EXP (入场奖励)`, 'success');
+    loadDashboard();
+  } else {
+    toast(r.message, 'error');
+  }
+}
+
+/* ── Bosses ─────────────────────────────────────────────── */
+async function loadBosses(){
+  const d = await apiGet('/bosses');
+  const list = document.getElementById('boss-list');
+  if(!d.bosses.length){
+    list.innerHTML = '<div class="empty">暂无可挑战 Boss (需要 LV.10+)</div>';
+    return;
+  }
+  let html = '';
+  for(const b of d.bosses){
+    const cls = b.defeated ? 'defeated' : '';
+    const icon = b.defeated ? '✅' : '💀';
+    html += `<div class="boss-card ${cls}">
+      <div class="b-icon">${icon}</div>
+      <div class="b-info">
+        <div class="b-name">${b.name}</div>
+        <div class="b-desc">${b.description}</div>
+        <div class="b-reward">奖励: ${b.reward_exp} EXP, ${b.reward_gold} 金币</div>
+      </div>
+      <div style="text-align:center">
+        <div class="text-dim" style="font-size:11px">HP</div>
+        <div style="font-size:20px;font-weight:700;color:var(--red)">${b.hp}</div>
+      </div>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+/* ── Integrations ───────────────────────────────────────── */
+async function loadIntegrations(){
+  const d = await apiGet('/integrations');
+  const statusEl = document.getElementById('int-status');
+  statusEl.innerHTML = `
+    <h3>集成状态</h3>
+    <div class="int-row">
+      <div class="int-icon">🏃</div>
+      <div class="int-info"><div class="int-name">健康数据</div><div class="int-desc">步数/运动/睡眠 → EXP</div></div>
+      <span class="int-status ${d.healthEnabled?'on':'off'}">${d.healthEnabled?'已启用':'已停用'}</span>
+      <button class="btn btn-sm" onclick="toggleInt('health',${!d.healthEnabled})">${d.healthEnabled?'停用':'启用'}</button>
+    </div>
+    <div class="int-row">
+      <div class="int-icon">📖</div>
+      <div class="int-info"><div class="int-name">阅读数据</div><div class="int-desc">阅读时长/页数 → EXP</div></div>
+      <span class="int-status ${d.readingEnabled?'on':'off'}">${d.readingEnabled?'已启用':'已停用'}</span>
+      <button class="btn btn-sm" onclick="toggleInt('reading',${!d.readingEnabled})">${d.readingEnabled?'停用':'启用'}</button>
+    </div>
+    <div class="int-row">
+      <div class="int-icon">🌐</div>
+      <div class="int-info"><div class="int-name">浏览器活动</div><div class="int-desc">学习时长 → EXP</div></div>
+      <span class="int-status ${d.browserEnabled?'on':'off'}">${d.browserEnabled?'已启用':'已停用'}</span>
+      <button class="btn btn-sm" onclick="toggleInt('browser',${!d.browserEnabled})">${d.browserEnabled?'停用':'启用'}</button>
+    </div>
+    <div class="text-dim mt-12">总导入次数: ${d.totalImports}</div>
+  `;
+
+  const actionsEl = document.getElementById('int-actions');
+  actionsEl.innerHTML = `
+    <div class="card">
+      <h3>🏃 记录健康</h3>
+      <div class="input-row"><label>步数</label><input type="number" id="h-steps" value="0" style="width:80px"></div>
+      <div class="input-row"><label>运动</label><input type="number" id="h-exercise" value="0" style="width:80px"> <span class="text-dim" style="font-size:12px">分钟</span></div>
+      <div class="input-row"><label>睡眠</label><input type="number" id="h-sleep" value="0" step="0.5" style="width:80px"> <span class="text-dim" style="font-size:12px">小时</span></div>
+      <button class="btn btn-primary" onclick="doHealth()">记录</button>
+    </div>
+    <div class="card">
+      <h3>📖 记录阅读</h3>
+      <div class="input-row"><label>时长</label><input type="number" id="r-minutes" value="0" style="width:80px"> <span class="text-dim" style="font-size:12px">分钟</span></div>
+      <div class="input-row"><label>页数</label><input type="number" id="r-pages" value="0" style="width:80px"></div>
+      <div class="input-row"><label>书名</label><input type="text" id="r-book" value="" style="width:120px"></div>
+      <button class="btn btn-primary" onclick="doReading()">记录</button>
+    </div>
+    <div class="card">
+      <h3>🌐 记录浏览器</h3>
+      <div class="input-row"><label>网站</label><input type="text" id="b-site" value="leetcode.com" style="width:120px"></div>
+      <div class="input-row"><label>时长</label><input type="number" id="b-minutes" value="30" style="width:80px"> <span class="text-dim" style="font-size:12px">分钟</span></div>
+      <button class="btn btn-primary" onclick="doBrowser()">记录</button>
+    </div>
+  `;
+}
+
+async function toggleInt(type, enable){
+  const r = await apiPost('/integrations/' + (enable ? 'enable' : 'disable'), {target: type});
+  toast(r.message, r.success ? 'success' : 'error');
+  if(r.success) loadIntegrations();
+}
+
+async function doHealth(){
+  const steps = parseInt(document.getElementById('h-steps').value)||0;
+  const exercise = parseInt(document.getElementById('h-exercise').value)||0;
+  const sleep = parseFloat(document.getElementById('h-sleep').value)||0;
+  const r = await apiPost('/health', {steps, exercise_min: exercise, sleep_hours: sleep});
+  if(r.success){
+    toast(`+${r.total_exp} EXP`, 'success');
+    loadDashboard();
+  } else {
+    toast(r.message, 'error');
+  }
+}
+
+async function doReading(){
+  const minutes = parseInt(document.getElementById('r-minutes').value)||0;
+  const pages = parseInt(document.getElementById('r-pages').value)||0;
+  const book = document.getElementById('r-book').value;
+  const r = await apiPost('/reading', {minutes, pages, book});
+  if(r.success){
+    toast(`+${r.total_exp} EXP`, 'success');
+    loadDashboard();
+  } else {
+    toast(r.message, 'error');
+  }
+}
+
+async function doBrowser(){
+  const site = document.getElementById('b-site').value;
+  const minutes = parseInt(document.getElementById('b-minutes').value)||0;
+  const r = await apiPost('/browser', {site, minutes});
+  if(r.success){
+    toast(`+${r.total_exp} EXP`, 'success');
+    loadDashboard();
+  } else {
+    toast(r.message, 'error');
+  }
+}
+
+/* ── Init ───────────────────────────────────────────────── */
+loadDashboard();
+
+/* Auto-refresh status every 30s */
+setInterval(() => {
+  const activeTab = document.querySelector('.tab-content.active');
+  if(activeTab){
+    const tabId = activeTab.id.replace('tab-','');
+    if(tabId==='dashboard') loadDashboard();
+    else if(tabId==='tasks') loadTasks();
+  }
+}, 30000);
+</script>
+</body>
+</html>

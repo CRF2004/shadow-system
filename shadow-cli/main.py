@@ -1240,6 +1240,10 @@ def main():
     int_parser.add_argument("action", nargs="?", help="操作: enable/disable")
     int_parser.add_argument("target", nargs="?", help="目标: health/reading/browser")
 
+    # web
+    web_parser = subparsers.add_parser("web", help="启动 Web 面板")
+    web_parser.add_argument("--port", type=int, default=8080, help="端口号 (默认 8080)")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -1359,6 +1363,10 @@ def main():
 
     elif args.command == "integrations":
         print(cmd_integrations(player, args.action, args.target))
+
+    elif args.command == "web":
+        from web_server import run_server
+        run_server(args.port)
 
 
 if __name__ == "__main__":
