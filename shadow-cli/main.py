@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Shadow CLI - 暗影君主系统 v0.2.0
+Shadow CLI - 暗影君主系统 v0.3.0
 个人成长游戏化工具
 
 Usage:
@@ -17,13 +17,20 @@ Usage:
     python main.py monitor                   虚空监控: 实时面板
     python main.py deploy [分钟]              领域展开: 全局诊断
     python main.py archive "[主题]"           记忆固化: 保存经验
-    python main.py reset                     重置角色 (危险!)
     python main.py scan-git [路径]           扫描 Git 提交并获取 EXP
     python main.py setup-git [路径]          安装 Git post-commit hook
     python main.py remove-git [路径]         移除 Git post-commit hook
     python main.py git-status                查看 Git 追踪状态
     python main.py scan-files [路径]         扫描代码文件变更并获取 EXP
     python main.py file-status               查看文件追踪状态
+    python main.py dungeons                  查看可用副本
+    python main.py enter-dungeon <副本ID>     进入副本
+    python main.py boss-list                 查看 Boss 列表
+    python main.py shop [类别]               浏览商店
+    python main.py buy <商品ID>              购买商品
+    python main.py sell <商品ID>             出售物品
+    python main.py inventory                 查看背包
+    python main.py reset                     重置角色 (危险!)
 """
 
 import argparse
@@ -52,6 +59,23 @@ from file_tracker import (
     save_snapshot,
     get_file_status,
     compare_snapshots,
+)
+from dungeon import (
+    get_available_dungeons,
+    generate_dungeon_instance,
+    progress_dungeon,
+    claim_dungeon_reward,
+    get_active_bosses,
+    check_boss_defeat,
+    DUNGEONS,
+    BOSSES,
+)
+from shop import (
+    get_shop_items,
+    buy_item,
+    sell_item,
+    get_inventory,
+    SHOP_ITEMS,
 )
 from engine import (
     add_exp,
@@ -150,12 +174,20 @@ def cmd_record(player: dict, action_type: str, quantity: int = 1) -> str:
     if exp <= 0:
         return f"❌ 未知行为类型: {action_type}\n有效: commit, coding, vocabulary, exercise, reading"
 
+    # Double EXP from shop
+    if player.get("doubleExpNext", 0) > 0:
+        exp *= 2
+        player["doubleExpNext"] -= 1
+
     # Track commit count
     if action_type == "commit":
         player["commitCount"] = player.get("commitCount", 0) + quantity
 
     # Apply task progress
     task_result = apply_task_progress(player, action_type, quantity)
+
+    # Progress dungeon tasks
+    dungeon_result = progress_dungeon(player, action_type, quantity)
 
     # Add EXP
     levelup_msgs = add_exp(player, exp)
@@ -165,6 +197,26 @@ def cmd_record(player: dict, action_type: str, quantity: int = 1) -> str:
     ach_msgs = []
     for ach in new_achievements:
         ach_msgs.append(f"🏆 成就解锁: {ach['name']} — {ach['description']} (+{ach['reward_exp']} EXP, +{ach['reward_gold']} 金币)")
+
+    # Check boss defeats
+    defeated_bosses = check_boss_defeat(player)
+    boss_msgs = []
+    for boss in defeated_bosses:
+        boss_msgs.append(f"💀 Boss 击破: {boss['name']}! (+{boss['reward_exp']} EXP, +{boss['reward_gold']} 金币)")
+
+    # Claim dungeon rewards
+    dungeon_msgs = []
+    if dungeon_result.get("completed"):
+        for comp in dungeon_result["completed"]:
+            dungeon_msgs.append(f"🏰 副本任务完成: {comp['task']} (奖励: {comp['reward']} EXP)")
+        # Check if all instances are done
+        all_instances_done = all(
+            all(t["completed"] for t in inst["tasks"])
+            for inst in dungeon_result.get("instances", [])
+        )
+        if all_instances_done and dungeon_result.get("instances"):
+            rewards = claim_dungeon_reward(player, dungeon_result["instances"])
+            dungeon_msgs.extend(rewards)
 
     save_player(player)
 
@@ -179,6 +231,15 @@ def cmd_record(player: dict, action_type: str, quantity: int = 1) -> str:
     if task_result["all_done"]:
         result += f"\n  🎉 所有每日任务完成!"
 
+    # Show dungeon progress
+    if dungeon_result.get("progress"):
+        for dp in dungeon_result["progress"]:
+            result += f"\n  🏰 {dp['dungeon']}: {dp['task']} {dp['old']} → {dp['new']}"
+
+    if dungeon_msgs:
+        result += "\n" + "\n".join(dungeon_msgs)
+    if boss_msgs:
+        result += "\n" + "\n".join(boss_msgs)
     if levelup_msgs:
         result += "\n" + "\n".join(levelup_msgs)
     if ach_msgs:
@@ -674,6 +735,155 @@ def cmd_file_status(player: dict) -> str:
     return get_file_status()
 
 
+def cmd_dungeons(player: dict) -> str:
+    """Show available dungeons."""
+    available = get_available_dungeons(player)
+    lines = [
+        "┌──────────────────────────────────────────┐",
+        "│  🏰 可用副本                              │",
+        "├──────────────────────────────────────────┤",
+    ]
+
+    if not available:
+        lines.append("│  暂无可用副本                        │")
+    else:
+        for d in available:
+            type_icon = {"daily": "📅", "weekly": "🔄", "boss": "💀"}.get(d["type"], "📋")
+            lines.append(f"│ {type_icon} {d['id']:<20}                 │")
+            lines.append(f"│   {d['name']} ({d['type']})             │")
+
+    lines.append("├──────────────────────────────────────────┤")
+    lines.append("│  使用 'shadow enter-dungeon <副本ID>' 进入  │")
+    lines.append("└──────────────────────────────────────────┘")
+    return "\n".join(lines)
+
+
+def cmd_enter_dungeon(player: dict, dungeon_id: str) -> str:
+    """Enter a dungeon."""
+    available = [d["id"] for d in get_available_dungeons(player)]
+    if dungeon_id not in available:
+        return f"❌ 不可用副本: {dungeon_id}\n可用: {', '.join(available) if available else '无'}"
+
+    result = generate_dungeon_instance(dungeon_id, player)
+    if not result["success"]:
+        return result["message"]
+
+    inst = result["instance"]
+    lines = [
+        f"🏰 进入副本: {inst['dungeon_name']} [{inst['difficulty']}]",
+        f"+{result['entry_exp']} EXP (入场奖励)",
+        "",
+        "任务列表:",
+    ]
+    for i, task in enumerate(inst["tasks"], 1):
+        lines.append(f"  {i}. {task['name']} ({task['type']} x{task['target']}) → {task['reward']} EXP")
+    lines.append("")
+    lines.append(f"完成全部任务可获得: {inst['total_reward']} EXP")
+    lines.append("💡 使用 record 命令记录行为自动推进副本进度")
+
+    save_player(player)
+    return "\n".join(lines)
+
+
+def cmd_boss_list(player: dict) -> str:
+    """Show available bosses."""
+    bosses = get_active_bosses(player)
+    existing = set(player.get("bosses_defeated", []))
+    lines = [
+        "┌──────────────────────────────────────────┐",
+        "│  💀 Boss 列表                            │",
+        "├──────────────────────────────────────────┤",
+    ]
+
+    if not bosses:
+        lines.append("│  暂无可挑战 Boss (需要 LV.10+)          │")
+    else:
+        for boss in bosses:
+            defeated = boss["id"] in existing
+            icon = "✅" if defeated else "⚔️"
+            lines.append(f"│ {icon} {boss['name']:<18} HP:{boss['hp']}      │")
+            lines.append(f"│   {boss['description']:<22} │")
+            if not defeated:
+                lines.append(f"│   击破条件: LV.{boss['defeat_value']} (条件值)          │")
+            lines.append(f"│   奖励: {boss['reward_exp']} EXP, {boss['reward_gold']} 金币         │")
+
+    lines.append("└──────────────────────────────────────────┘")
+    return "\n".join(lines)
+
+
+def cmd_shop(player: dict, category: str | None = None) -> str:
+    """Show shop items."""
+    items = get_shop_items(player, category)
+    lines = [
+        "┌──────────────────────────────────────────┐",
+        "│  🏪 暗影商店                              │",
+        "├──────────────────────────────────────────┤",
+        f"│  金币: {player.get('gold', 0)}  宝石: {player.get('gems', 0)}                  │",
+        "├──────────────────────────────────────────┤",
+    ]
+
+    if not items:
+        if category:
+            lines.append(f"│  类别 '{category}' 暂无商品                 │")
+        else:
+            lines.append("│  商店暂无商品 (提高等级解锁更多)             │")
+    else:
+        current_cat = None
+        for item in items:
+            if item["category"] != current_cat:
+                current_cat = item["category"]
+                cat_name = {"consumable": "消耗品", "equipment": "装备", "appearance": "外观", "functional": "功能"}.get(current_cat, current_cat)
+                lines.append(f"│  ── {cat_name} ──                     │")
+            price_str = f"{item['price']}G" if item["price_type"] == "gold" else f"{item['price']}💎"
+            name = item["name"][:14]
+            desc = item["description"][:18]
+            lines.append(f"│  {item['id']:<18} {price_str:<8}          │")
+
+    lines.append("├──────────────────────────────────────────┤")
+    lines.append("│  使用 'shadow buy <ID>' 购买              │")
+    lines.append("│  使用 'shadow sell <ID>' 出售 (50% 回收)   │")
+    lines.append("└──────────────────────────────────────────┘")
+    return "\n".join(lines)
+
+
+def cmd_buy(player: dict, item_id: str) -> str:
+    """Buy an item from the shop."""
+    result = buy_item(player, item_id)
+    if result["success"]:
+        save_player(player)
+    return result["message"]
+
+
+def cmd_sell(player: dict, item_id: str) -> str:
+    """Sell an item."""
+    result = sell_item(player, item_id)
+    if result["success"]:
+        save_player(player)
+    return result["message"]
+
+
+def cmd_inventory(player: dict) -> str:
+    """Show player inventory."""
+    items = get_inventory(player)
+    lines = [
+        "┌──────────────────────────────────────────┐",
+        "│  🎒 背包                                  │",
+        "├──────────────────────────────────────────┤",
+    ]
+
+    if not items:
+        lines.append("│  背包为空                              │")
+    else:
+        for i, item in enumerate(items, 1):
+            name = item.get("name", "未知物品")[:20]
+            lines.append(f"│  {i}. {name:<24} │")
+
+    lines.append("├──────────────────────────────────────────┤")
+    lines.append(f"│  总计: {len(items)} 件物品                         │")
+    lines.append("└──────────────────────────────────────────┘")
+    return "\n".join(lines)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Shadow CLI - 暗影君主系统",
@@ -755,6 +965,31 @@ def main():
     # file-status
     subparsers.add_parser("file-status", help="查看文件追踪状态")
 
+    # dungeons
+    subparsers.add_parser("dungeons", help="查看可用副本")
+
+    # enter-dungeon
+    enter_dungeon_parser = subparsers.add_parser("enter-dungeon", help="进入副本")
+    enter_dungeon_parser.add_argument("dungeon_id", help="副本ID")
+
+    # boss-list
+    subparsers.add_parser("boss-list", help="查看 Boss 列表")
+
+    # shop
+    shop_parser = subparsers.add_parser("shop", help="浏览商店")
+    shop_parser.add_argument("category", nargs="?", help="商品类别: consumable/equipment/appearance/functional")
+
+    # buy
+    buy_parser = subparsers.add_parser("buy", help="购买商品")
+    buy_parser.add_argument("item_id", help="商品ID")
+
+    # sell
+    sell_parser = subparsers.add_parser("sell", help="出售物品")
+    sell_parser.add_argument("item_id", help="商品ID")
+
+    # inventory
+    subparsers.add_parser("inventory", help="查看背包")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -823,6 +1058,27 @@ def main():
 
     elif args.command == "file-status":
         print(cmd_file_status(player))
+
+    elif args.command == "dungeons":
+        print(cmd_dungeons(player))
+
+    elif args.command == "enter-dungeon":
+        print(cmd_enter_dungeon(player, args.dungeon_id))
+
+    elif args.command == "boss-list":
+        print(cmd_boss_list(player))
+
+    elif args.command == "shop":
+        print(cmd_shop(player, args.category))
+
+    elif args.command == "buy":
+        print(cmd_buy(player, args.item_id))
+
+    elif args.command == "sell":
+        print(cmd_sell(player, args.item_id))
+
+    elif args.command == "inventory":
+        print(cmd_inventory(player))
 
 
 if __name__ == "__main__":
