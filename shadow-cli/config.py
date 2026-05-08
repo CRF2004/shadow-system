@@ -13,7 +13,7 @@ SOLDIERS_DIR = STATE_DIR / "soldiers"
 LOGS_DIR = STATE_DIR / "logs"
 
 # Core constants
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 BASE_EXP = 100
 EXP_MULTIPLIER = 1.5
 STAT_POINTS_PER_LEVEL = 3

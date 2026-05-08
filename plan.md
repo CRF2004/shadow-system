@@ -93,14 +93,14 @@ Phase 4  · 外部集成（运动 API + 读书 API + 浏览器插件）    →  
 **前提**：Phase 1 完整可用，用户手动打卡频率稳定。
 
 ### 2.1 Git 提交追踪
-- [ ] 安装 Git pre-commit hook：自动记录 commit 时间和文件变更
-- [ ] 读取 Git log：统计每日 commit 数量，自动记录 EXP
+- [x] 安装 Git pre-commit hook：自动记录 commit 时间和文件变更
+- [x] 读取 Git log：统计每日 commit 数量，自动记录 EXP
 - [ ] GitHub API 同步（可选）：同步远程仓库的 commit 记录
 
 ### 2.2 文件变更监控
-- [ ] 使用 Python watchdog 监控工作目录文件变更
-- [ ] 统计代码行数变化 → 自动换算为 coding EXP
-- [ ] 过滤器：仅追踪 .py/.js/.ts/.go/.rs 等代码文件
+- [x] 文件变更扫描 — 零依赖实现（无 watchdog）
+- [x] 统计代码行数变化 → 自动换算为 coding EXP
+- [x] 过滤器：仅追踪 .py/.js/.ts/.go/.rs 等 23 种代码文件
 
 ### 2.3 Shell 命令记录
 - [ ] Shell preexec hook：记录终端执行的命令类型
@@ -158,7 +158,7 @@ Phase 4  · 外部集成（运动 API + 读书 API + 浏览器插件）    →  
 |--------|------|---------|------|
 | **M0: Phase 0 完成** | CLI 能跑通完整循环，经验公式验证 | ✅ 2026-05-06 | 🟢 |
 | **M1: Phase 1 完成** | 完整 CLI 可用，含任务/士兵/成就 | Phase 0 + 16h | 🟢 2026-05-08 |
-| **M2: Phase 2 完成** | Git 自动追踪上线 | Phase 1 + 12h | 🔴 |
+| **M2: Phase 2 完成** | Git 自动追踪上线 | Phase 1 + 12h | 🟢 2026-05-08 |
 | **M3: Phase 3 完成** | 副本+商店+成就上线 | Phase 2 + 20h | 🔴 |
 | **M4: Web 版本决策** | 基于数据决定是否投入 Web 开发 | Phase 3 后评估 | 🔴 |
 
@@ -180,4 +180,4 @@ Phase 4  · 外部集成（运动 API + 读书 API + 浏览器插件）    →  
 ---
 
 *最后更新：2026-05-08*
-*下次评审：Phase 1 完成后 — 进入 Phase 2（自动化追踪）*
+*下次评审：Phase 2 完成后 — 进入 Phase 3（副本+商店+成就）*
