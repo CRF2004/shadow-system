@@ -18,6 +18,12 @@ Usage:
     python main.py deploy [分钟]              领域展开: 全局诊断
     python main.py archive "[主题]"           记忆固化: 保存经验
     python main.py reset                     重置角色 (危险!)
+    python main.py scan-git [路径]           扫描 Git 提交并获取 EXP
+    python main.py setup-git [路径]          安装 Git post-commit hook
+    python main.py remove-git [路径]         移除 Git post-commit hook
+    python main.py git-status                查看 Git 追踪状态
+    python main.py scan-files [路径]         扫描代码文件变更并获取 EXP
+    python main.py file-status               查看文件追踪状态
 """
 
 import argparse
@@ -34,6 +40,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import VERSION, DAILY_TASKS, STAT_NAMES_CN, STAT_FULL_NAMES, SOLDIER_TYPES, LEGION_SCALES, QUESTS_DIR
 import config
 from state import load_player, save_player, reset_player
+from git_tracker import (
+    scan_commits_and_grant,
+    install_git_hook,
+    uninstall_git_hook,
+    get_git_root,
+    get_git_status_info,
+)
+from file_tracker import (
+    scan_files_and_grant,
+    save_snapshot,
+    get_file_status,
+    compare_snapshots,
+)
 from engine import (
     add_exp,
     calculate_power,
@@ -600,6 +619,61 @@ def cmd_archive(player: dict, topic: str) -> str:
 └──────────────────────────────────────────────┘"""
 
 
+def cmd_scan_git(player: dict, path: str = ".") -> str:
+    """Scan git commits and grant EXP."""
+    git_root = get_git_root(path)
+    if not git_root:
+        git_root = str(Path(path).resolve())
+        if not (Path(git_root) / ".git").exists():
+            return f"❌ 不是 Git 仓库: {path}"
+    result = scan_commits_and_grant(player, git_root)
+    msg = result["message"]
+    if result.get("levelup_msgs"):
+        msg += "\n" + "\n".join(result["levelup_msgs"])
+    if result.get("achievement_msgs"):
+        msg += "\n" + "\n".join(result["achievement_msgs"])
+    return msg
+
+
+def cmd_setup_git(player: dict, path: str = ".") -> str:
+    """Install Git post-commit hook."""
+    git_root = get_git_root(path)
+    if not git_root:
+        return f"❌ 不是 Git 仓库: {path}"
+    result = install_git_hook(git_root)
+    return result["message"]
+
+
+def cmd_remove_git(player: dict, path: str = ".") -> str:
+    """Remove Git post-commit hook."""
+    git_root = get_git_root(path)
+    if not git_root:
+        return f"❌ 不是 Git 仓库: {path}"
+    result = uninstall_git_hook(git_root)
+    return result["message"]
+
+
+def cmd_scan_files(player: dict, path: str = ".") -> str:
+    """Scan code files and grant EXP for changes."""
+    result = scan_files_and_grant(player, path)
+    msg = result["message"]
+    if result.get("levelup_msgs"):
+        msg += "\n" + "\n".join(result["levelup_msgs"])
+    if result.get("achievement_msgs"):
+        msg += "\n" + "\n".join(result["achievement_msgs"])
+    return msg
+
+
+def cmd_git_status(player: dict) -> str:
+    """Show Git tracking status."""
+    return get_git_status_info()
+
+
+def cmd_file_status(player: dict) -> str:
+    """Show file tracking status."""
+    return get_file_status()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Shadow CLI - 暗影君主系统",
@@ -659,6 +733,28 @@ def main():
     # reset
     subparsers.add_parser("reset", help="重置角色 (危险!)")
 
+    # scan-git
+    scan_git_parser = subparsers.add_parser("scan-git", help="扫描 Git 提交并获取 EXP")
+    scan_git_parser.add_argument("path", nargs="?", default=".", help="仓库路径")
+
+    # setup-git
+    setup_git_parser = subparsers.add_parser("setup-git", help="安装 Git post-commit hook")
+    setup_git_parser.add_argument("path", nargs="?", default=".", help="仓库路径")
+
+    # remove-git
+    remove_git_parser = subparsers.add_parser("remove-git", help="移除 Git post-commit hook")
+    remove_git_parser.add_argument("path", nargs="?", default=".", help="仓库路径")
+
+    # git-status
+    subparsers.add_parser("git-status", help="查看 Git 追踪状态")
+
+    # scan-files
+    scan_files_parser = subparsers.add_parser("scan-files", help="扫描代码文件变更并获取 EXP")
+    scan_files_parser.add_argument("path", nargs="?", default=".", help="目录路径")
+
+    # file-status
+    subparsers.add_parser("file-status", help="查看文件追踪状态")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -710,6 +806,25 @@ def main():
         reset_player()
         print("✅ 角色已重置")
 
+    elif args.command == "scan-git":
+        print(cmd_scan_git(player, args.path))
+
+    elif args.command == "setup-git":
+        print(cmd_setup_git(player, args.path))
+
+    elif args.command == "remove-git":
+        print(cmd_remove_git(player, args.path))
+
+    elif args.command == "git-status":
+        print(cmd_git_status(player))
+
+    elif args.command == "scan-files":
+        print(cmd_scan_files(player, args.path))
+
+    elif args.command == "file-status":
+        print(cmd_file_status(player))
+
 
 if __name__ == "__main__":
     main()
+
