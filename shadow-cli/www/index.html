@@ -594,7 +594,8 @@ async function doLogin(){
     setToken(r.token);
     showAuthOverlay(false);
     toast('登录成功！', 'success');
-    loadDashboard();
+    connectSSE();
+    checkOnboarding();
   } else {
     document.getElementById('login-error').textContent = r.message || '登录失败';
   }
@@ -612,7 +613,8 @@ async function doRegister(){
     setToken(r.token);
     showAuthOverlay(false);
     toast(r.message || '注册成功！', 'success');
-    loadDashboard();
+    connectSSE();
+    checkOnboarding();
   } else {
     document.getElementById('reg-error').textContent = r.message || '注册失败';
   }
@@ -634,7 +636,7 @@ function authHeaders(){
 }
 
 async function apiGet(path){
-  const r = await fetch(API + path, {headers: authHeaders(), signal: AbortSignal.timeout(10000)});
+  const r = await fetch(API + path, {headers: authHeaders()});
   if(!r.ok) throw new Error('HTTP '+r.status);
   return r.json();
 }
@@ -642,8 +644,7 @@ async function apiPost(path, body){
   const r = await fetch(API + path, {
     method:'POST',
     headers: authHeaders(),
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(10000)
+    body: JSON.stringify(body)
   });
   if(!r.ok) throw new Error('HTTP '+r.status);
   return r.json();
@@ -1424,18 +1425,19 @@ async function loadAnalytics(){
 /* ── SSE Event Feed ─────────────────────────────────────── */
 let eventSource = null;
 function connectSSE(){
+  try {
   if(eventSource){ eventSource.close(); eventSource = null; }
   const t = getToken();
   if(!t) return;
 
   // Create a custom SSE connection with auth
-  const evtSrc = new EventSource(API + '/events');
-  eventSource = evtSrc;
+  const evtSource = new EventSource(API + '/events');
+  eventSource = evtSource;
   const feedEl = document.getElementById('event-feed');
 
   // Show feed on hover or toggle (auto-show on mobile)
   feedEl.classList.add('visible');
-  setTimeout(() => { if(eventSource === evtSrc) feedEl.classList.remove('visible'); }, 10000);
+  setTimeout(() => { if(eventSource === evtSource) feedEl.classList.remove('visible'); }, 10000);
 
   // Generic listener for all event types
   const eventTypes = ['level_up','achievement','activity','daily_complete',
@@ -1467,6 +1469,7 @@ function connectSSE(){
     // Reconnect after 5s
     setTimeout(connectSSE, 5000);
   };
+  } catch(e) { console.warn('connectSSE failed:', e); }
 }
 
 /* ── Onboarding ───────────────────────────────────────────── */

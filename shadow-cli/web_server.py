@@ -268,10 +268,24 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": f"Unknown endpoint: {path}"}, 404)
 
     def do_GET_static(self):
-        """Serve static files."""
+        """Serve static files with no-cache for HTML."""
         path = self.path.rstrip("/")
         if path == "" or path == "/":
             self.path = "/index.html"
+        # Disable caching for HTML to ensure fresh load
+        if self.path.endswith(".html"):
+            self.send_response(200)
+            self.send_header("Content-type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.end_headers()
+            try:
+                f = open(self.translate_path(self.path), "rb")
+                self.wfile.write(f.read())
+                f.close()
+            except OSError:
+                pass
+            return
         return super().do_GET()
 
     # ── API Handlers ──────────────────────────────────────────────────────
@@ -1142,10 +1156,6 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         body = self._read_body()
         skills = body.get("skills", [])
         template_used = body.get("template_used")
-
-        if not skills:
-            self._send_json({"error": "No skills provided"}, 400)
-            return
 
         player = self._load_player()
         player["skillConfig"] = {
