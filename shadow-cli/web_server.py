@@ -56,7 +56,7 @@ from guild import (
 )
 from events import event_bus, broadcast, format_sse, format_heartbeat
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 
 
 class ShadowAPIHandler(SimpleHTTPRequestHandler):

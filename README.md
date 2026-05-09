@@ -111,13 +111,24 @@ shadow-system/
 ├── shadow.json                   # 技能元数据定义
 └── shadow-cli/
     ├── main.py          # CLI 入口 (18 个命令)
+    ├── web_server.py    # Web 仪表盘 + REST API + SSE 推送
     ├── engine.py        # 游戏引擎 (EXP/升级/士兵/成就)
+    ├── auth.py          # 多用户认证 (JWT/PBKDF2, 零外部依赖)
+    ├── guild.py         # 公会系统 (创建/任务/公会战/排行)
+    ├── events.py        # 事件总线 (SSE 实时推送)
+    ├── dungeon.py       # 副本系统
+    ├── shop.py          # 商店系统
+    ├── chat_processor.py # OpenAI 兼容聊天接口
+    ├── file_tracker.py  # 文件变更监控
+    ├── git_tracker.py   # Git 提交追踪
     ├── state.py         # 状态持久化 (JSON)
     ├── config.py        # 配置常量
     └── tests/
-        ├── test_engine.py    # 55 个引擎测试
-        ├── test_state.py     # 20 个状态测试
-        └── test_phase1.py    # 36 个 Phase 1 测试
+        ├── test_engine.py       # 引擎测试
+        ├── test_state.py        # 状态测试
+        ├── test_auth_guild.py   # 认证 + 公会测试 (37)
+        ├── test_events.py       # 事件系统测试
+        └── ...
 ```
 
 ## 测试
@@ -127,7 +138,7 @@ cd shadow-cli
 python -m pytest tests/ -v
 ```
 
-**111 个测试全部通过。**
+**305 个测试全部通过。**
 
 ## 数据位置
 
@@ -147,6 +158,11 @@ python -m pytest tests/ -v
 |------|------|------|
 | v0.1.0 | Phase 0 | 核心循环验证 ✅ |
 | v0.2.0 | Phase 1 | 完整 CLI ✅ |
+| v0.3.0 | Phase 2 | Git/文件追踪自动化 ✅ |
+| v0.4.0 | Phase 3 | 副本/商店/Boss 战 ✅ |
+| v0.5.0 | Phase 4 | 外部集成 (健康/阅读/浏览器) ✅ |
+| v0.5.1 | Phase 5 | Web 仪表盘 + RPG UI ✅ |
+| v0.6.0 | Phase 6 | 多用户认证 + 公会系统 + SSE 实时推送 ✅ |
 
 ---
 
