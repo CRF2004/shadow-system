@@ -98,6 +98,16 @@ from integrations import (
     record_reading_manual, get_reading_summary,
     import_browser_data, record_browser_manual, get_browser_summary,
 )
+from guild import (
+    create_guild, disband_guild, join_guild, leave_guild,
+    list_guilds, get_guild, get_user_guild, get_guild_rankings,
+    get_member_rankings, transfer_leadership, kick_member, promote_member,
+    start_guild_task, contribute_to_guild_task,
+    start_guild_battle, deal_boss_damage,
+    add_guild_log, MAX_MEMBERS, GUILD_BOSSES,
+    auto_progress_guild, get_active_season_id, get_season_guild_ranking,
+    get_season_member_ranking, get_season_info, end_season,
+)
 
 
 CMD_HELP = """\
@@ -211,6 +221,25 @@ def cmd_record(player: dict, action_type: str, quantity: int = 1) -> str:
     for boss in defeated_bosses:
         boss_msgs.append(f"💀 Boss 击破: {boss['name']}! (+{boss['reward_exp']} EXP, +{boss['reward_gold']} 金币)")
 
+    # Auto-progress guild task/boss
+    guild_result = auto_progress_guild(player, action_type, quantity)
+    guild_msgs = []
+    if guild_result.get("success") and guild_result.get("inGuild"):
+        if guild_result.get("taskProgress"):
+            tp = guild_result["taskProgress"]
+            guild_msgs.append(
+                f"🏰 公会 [{guild_result['guildName']}] 任务: {tp['progress']}/{tp['target']}"
+            )
+            if tp.get("completed"):
+                guild_msgs.append(f"🎉 公会任务完成: {tp.get('message', '')}")
+        if guild_result.get("bossDamage"):
+            bd = guild_result["bossDamage"]
+            guild_msgs.append(
+                f"⚔️ 公会 [{guild_result['guildName']}] Boss 伤害: {bd['damage']} (HP: {bd['bossHp']}/{bd['bossMaxHp']})"
+            )
+            if bd.get("defeated"):
+                guild_msgs.append(f"🏆 Boss 被击败: {bd.get('message', '')}")
+
     # Claim dungeon rewards
     dungeon_msgs = []
     if dungeon_result.get("completed"):
@@ -251,6 +280,8 @@ def cmd_record(player: dict, action_type: str, quantity: int = 1) -> str:
         result += "\n" + "\n".join(levelup_msgs)
     if ach_msgs:
         result += "\n" + "\n".join(ach_msgs)
+    if guild_msgs:
+        result += "\n" + "\n".join(guild_msgs)
 
     return result
 
@@ -1088,6 +1119,287 @@ def cmd_integrations(player: dict, action: str | None = None, target: str | None
     return "\n".join(lines)
 
 
+# ── Guild CLI Commands ─────────────────────────────────────────────────────
+
+def cmd_guild_create(player: dict, name: str) -> str:
+    """Create a new guild."""
+    username = player.get("username", "fallback")
+    existing = get_user_guild(username)
+    if existing:
+        return f"❌ 你已在公会 [{existing['name']}] 中，先离开再创建"
+    result = create_guild(player, name, username)
+    if result["success"]:
+        player["guildCreated"] = True
+        player["guildJoined"] = True
+        save_player(player)
+    return result["message"]
+
+
+def cmd_guild_join(player: dict, guild_id: str) -> str:
+    """Join a guild."""
+    username = player.get("username", "fallback")
+    existing = get_user_guild(username)
+    if existing:
+        return f"❌ 你已在公会 [{existing['name']}] 中"
+    result = join_guild(guild_id, username, player)
+    if result["success"]:
+        player["guildJoined"] = True
+        save_player(player)
+    return result["message"]
+
+
+def cmd_guild_leave(player: dict) -> str:
+    """Leave current guild."""
+    username = player.get("username", "fallback")
+    guild = get_user_guild(username)
+    if not guild:
+        return "❌ 你未加入任何公会"
+    result = leave_guild(guild["id"], username)
+    return result["message"]
+
+
+def cmd_guild_info(player: dict, guild_id: str | None = None) -> str:
+    """Show guild info."""
+    username = player.get("username", "fallback")
+    if not guild_id:
+        guild = get_user_guild(username)
+        if not guild:
+            return "❌ 你未加入任何公会\n使用 'guild join <ID>' 加入公会"
+        guild_id = guild["id"]
+
+    guild = get_guild(guild_id)
+    if not guild:
+        return f"❌ 公会不存在: {guild_id}"
+
+    lines = [
+        "┌──────────────────────────────────────────┐",
+        f"│  🏰 公会: {guild['name']:<20}   │",
+        f"│  排行: {guild['rank']:<22}   │",
+        f"│  贡献: {guild['contribution']:<22}   │",
+        f"│  领袖: {guild['leader']:<22}   │",
+        "├──────────────────────────────────────────┤",
+        f"│  成员: {len(guild['members'])}/{MAX_MEMBERS}                           │",
+        "├──────────────────────────────────────────┤",
+    ]
+    for m in guild["members"]:
+        role_icon = {"leader": "👑", "officer": "⭐", "member": "·"}.get(m["role"], "·")
+        lines.append(f"│  {role_icon} {m['username']:<18} {m.get('contribution', 0):>6}  │")
+    lines.append("├──────────────────────────────────────────┤")
+
+    if guild.get("activeTask"):
+        t = guild["activeTask"]
+        pct = int(t["current"] / t["target"] * 100) if t["target"] > 0 else 0
+        bar = "█" * (pct // 5) + "░" * (20 - pct // 5)
+        lines.append(f"│  📋 任务: {t['name']:<16}   │")
+        lines.append(f"│  [{bar}] {t['current']}/{t['target']}                 │")
+
+    if guild.get("activeBoss"):
+        b = guild["activeBoss"]
+        hp_pct = int(b["currentHp"] / b["maxHp"] * 100)
+        bar_len = hp_pct // 5
+        bar = "█" * bar_len + "░" * (20 - bar_len)
+        lines.append(f"│  💀 Boss: {b['name']:<17}   │")
+        lines.append(f"│  [{bar}] {b['currentHp']}/{b['maxHp']}               │")
+
+    lines.append("└──────────────────────────────────────────┘")
+    return "\n".join(lines)
+
+
+def cmd_guild_list(player: dict) -> str:
+    """List all guilds."""
+    guilds = list_guilds()
+    if not guilds:
+        return "🏰 暂无公会\n使用 'guild create <名称>' 创建你的公会"
+
+    lines = [
+        "┌──────────────────────────────────────────────────────┐",
+        "│  🏰 公会排行榜                                    │",
+        "├──────────────────────────────────────────────────────┤",
+    ]
+    for i, g in enumerate(guilds[:10], 1):
+        medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, f"#{i}")
+        lines.append(
+            f"│ {medal} {g['name']:<15} {g['rank']:<8} {g['members']}人 "
+            f"贡献:{g['contribution']:<8} │"
+        )
+    lines.append("└──────────────────────────────────────────────────────┘")
+    return "\n".join(lines)
+
+
+def cmd_guild_task(player: dict, action: str, guild_id: str | None = None) -> str:
+    """Manage guild tasks."""
+    username = player.get("username", "fallback")
+    if not guild_id:
+        guild = get_user_guild(username)
+        if not guild:
+            return "❌ 你未加入任何公会"
+        guild_id = guild["id"]
+
+    if action == "start":
+        result = start_guild_task(guild_id, username)
+        return result["message"]
+    elif action == "contribute":
+        return "❌ 请通过 record 命令自动贡献到公会任务\n公会任务会自动匹配同类型的行为"
+
+    return f"❌ 未知任务操作: {action}\n可用: start, contribute"
+
+
+def cmd_guild_battle(player: dict, action: str, guild_id: str | None = None) -> str:
+    """Manage guild boss battles."""
+    username = player.get("username", "fallback")
+    if not guild_id:
+        guild = get_user_guild(username)
+        if not guild:
+            return "❌ 你未加入任何公会"
+        guild_id = guild["id"]
+
+    if action == "start":
+        result = start_guild_battle(guild_id, username)
+        return result["message"]
+    elif action == "attack":
+        return "❌ 请通过 record 命令自动攻击 Boss\n公会战会自动匹配行为类型"
+
+    return f"❌ 未知 Boss 操作: {action}\n可用: start, attack"
+
+
+def cmd_guild_members(player: dict, guild_id: str | None = None) -> str:
+    """Show guild member rankings."""
+    username = player.get("username", "fallback")
+    if not guild_id:
+        guild = get_user_guild(username)
+        if not guild:
+            return "❌ 你未加入任何公会"
+        guild_id = guild["id"]
+
+    rankings = get_member_rankings(guild_id)
+    if not rankings:
+        return "❌ 公会不存在或无成员"
+
+    lines = [
+        "┌──────────────────────────────────────────┐",
+        "│  👥 成员排行                              │",
+        "├──────────────────────────────────────────┤",
+    ]
+    for i, m in enumerate(rankings, 1):
+        medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, f" {i}")
+        role = {"leader": "👑", "officer": "⭐"}.get(m["role"], "  ")
+        lines.append(
+            f"│ {medal} {role} {m['username']:<14} 贡献:{m.get('contribution', 0):>6} │"
+        )
+    lines.append("└──────────────────────────────────────────┘")
+    return "\n".join(lines)
+
+
+def cmd_guild_promote(player: dict, target: str, guild_id: str | None = None) -> str:
+    """Promote a member to officer."""
+    actor = player.get("username", "fallback")
+    if not guild_id:
+        guild = get_user_guild(actor)
+        if not guild:
+            return "❌ 你未加入任何公会"
+        guild_id = guild["id"]
+    result = promote_member(guild_id, actor, target)
+    return result["message"]
+
+
+def cmd_guild_kick(player: dict, target: str, guild_id: str | None = None) -> str:
+    """Kick a member."""
+    actor = player.get("username", "fallback")
+    if not guild_id:
+        guild = get_user_guild(actor)
+        if not guild:
+            return "❌ 你未加入任何公会"
+        guild_id = guild["id"]
+    result = kick_member(guild_id, actor, target)
+    return result["message"]
+
+
+def cmd_guild_transfer(player: dict, new_leader: str, guild_id: str | None = None) -> str:
+    """Transfer guild leadership."""
+    actor = player.get("username", "fallback")
+    if not guild_id:
+        guild = get_user_guild(actor)
+        if not guild:
+            return "❌ 你未加入任何公会"
+        guild_id = guild["id"]
+    result = transfer_leadership(guild_id, actor, new_leader)
+    return result["message"]
+
+
+def cmd_guild_disband(player: dict, guild_id: str) -> str:
+    """Disband a guild."""
+    username = player.get("username", "fallback")
+    result = disband_guild(guild_id, username)
+    return result["message"]
+
+
+def cmd_season(player: dict, action: str | None = None, season_id: str | None = None) -> str:
+    """View/manage season rankings."""
+    if not action or action == "info":
+        sid = season_id or get_active_season_id()
+        info = get_season_info(sid)
+        if not info.get("success"):
+            return f"❌ {info.get('message', '赛季不存在')}"
+        lines = [
+            "┌──────────────────────────────────────────┐",
+            f"│  📊 赛季信息                             │",
+            "├──────────────────────────────────────────┤",
+            f"│  赛季: {info['id']:<24}   │",
+            f"│  类型: {info['type']:<24}   │",
+            f"│  公会数: {info['guildCount']:<22}   │",
+            f"│  成员数: {info['memberCount']:<22}   │",
+            f"│  状态: {'已结束' if info.get('endedAt') else '进行中'}{'':>20}   │",
+            "└──────────────────────────────────────────┘",
+        ]
+        return "\n".join(lines)
+
+    elif action == "rankings" or action == "guilds":
+        sid = season_id or get_active_season_id()
+        rankings = get_season_guild_ranking(sid)
+        if not rankings:
+            return f"📊 赛季 {sid} 暂无排行"
+        lines = [
+            f"┌──────────────────────────────────────────────────┐",
+            f"│  📊 赛季排行: {sid}                      │",
+            "├──────────────────────────────────────────────────┤",
+        ]
+        for i, g in enumerate(rankings[:10], 1):
+            medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, f" {i}")
+            lines.append(
+                f"│ {medal} {g['guildName']:<12} {g['rank']:<8} "
+                f"贡献:{g['contribution']:<8} │"
+            )
+        lines.append("└──────────────────────────────────────────────────┘")
+        return "\n".join(lines)
+
+    elif action == "members":
+        sid = season_id or get_active_season_id()
+        rankings = get_season_member_ranking(sid)
+        if not rankings:
+            return f"📊 赛季 {sid} 暂无成员排行"
+        lines = [
+            f"┌──────────────────────────────────────────┐",
+            f"│  📊 赛季成员排行: {sid}           │",
+            "├──────────────────────────────────────────┤",
+        ]
+        for i, m in enumerate(rankings[:10], 1):
+            medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, f" {i}")
+            lines.append(
+                f"│ {medal} {m['username']:<18} 贡献:{m['contribution']:<6} │"
+            )
+        lines.append("└──────────────────────────────────────────┘")
+        return "\n".join(lines)
+
+    elif action == "end":
+        sid = season_id or get_active_season_id()
+        result = end_season(sid)
+        if result.get("success"):
+            return f"✅ 赛季 {sid} 已结束\n" + json.dumps(result["rewards"], indent=2, ensure_ascii=False)
+        return f"❌ {result.get('message', '结束赛季失败')}"
+
+    return f"❌ 未知赛季操作: {action}\n可用: info, rankings, members, end"
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Shadow CLI - 暗影君主系统",
@@ -1240,6 +1552,62 @@ def main():
     int_parser.add_argument("action", nargs="?", help="操作: enable/disable")
     int_parser.add_argument("target", nargs="?", help="目标: health/reading/browser")
 
+    # season
+    season_parser = subparsers.add_parser("season", help="查看/管理赛季排行")
+    season_parser.add_argument("action", nargs="?", help="操作: info/rankings/guilds/members/end")
+    season_parser.add_argument("season_id", nargs="?", help="赛季ID (可选)")
+
+    # guild create
+    guild_create_parser = subparsers.add_parser("guild-create", help="创建公会")
+    guild_create_parser.add_argument("name", help="公会名称")
+
+    # guild join
+    guild_join_parser = subparsers.add_parser("guild-join", help="加入公会")
+    guild_join_parser.add_argument("guild_id", help="公会ID")
+
+    # guild leave
+    subparsers.add_parser("guild-leave", help="离开公会")
+
+    # guild info
+    guild_info_parser = subparsers.add_parser("guild-info", help="查看公会信息")
+    guild_info_parser.add_argument("guild_id", nargs="?", help="公会ID (可选)")
+
+    # guild list
+    subparsers.add_parser("guild-list", help="查看所有公会")
+
+    # guild task
+    guild_task_parser = subparsers.add_parser("guild-task", help="公会任务管理")
+    guild_task_parser.add_argument("action", help="操作: start/contribute")
+    guild_task_parser.add_argument("guild_id", nargs="?", help="公会ID (可选)")
+
+    # guild battle
+    guild_battle_parser = subparsers.add_parser("guild-battle", help="公会 Boss 战")
+    guild_battle_parser.add_argument("action", help="操作: start/attack")
+    guild_battle_parser.add_argument("guild_id", nargs="?", help="公会ID (可选)")
+
+    # guild members
+    guild_members_parser = subparsers.add_parser("guild-members", help="公会成员排行")
+    guild_members_parser.add_argument("guild_id", nargs="?", help="公会ID (可选)")
+
+    # guild promote
+    guild_promote_parser = subparsers.add_parser("guild-promote", help="任命公会副手")
+    guild_promote_parser.add_argument("target", help="目标用户名")
+    guild_promote_parser.add_argument("guild_id", nargs="?", help="公会ID (可选)")
+
+    # guild kick
+    guild_kick_parser = subparsers.add_parser("guild-kick", help="踢出公会成员")
+    guild_kick_parser.add_argument("target", help="目标用户名")
+    guild_kick_parser.add_argument("guild_id", nargs="?", help="公会ID (可选)")
+
+    # guild transfer
+    guild_transfer_parser = subparsers.add_parser("guild-transfer", help="转让公会领导权")
+    guild_transfer_parser.add_argument("new_leader", help="新领导者用户名")
+    guild_transfer_parser.add_argument("guild_id", nargs="?", help="公会ID (可选)")
+
+    # guild disband
+    guild_disband_parser = subparsers.add_parser("guild-disband", help="解散公会 (危险!)")
+    guild_disband_parser.add_argument("guild_id", help="公会ID")
+
     # web
     web_parser = subparsers.add_parser("web", help="启动 Web 面板")
     web_parser.add_argument("--port", type=int, default=8080, help="端口号 (默认 8080)")
@@ -1363,6 +1731,34 @@ def main():
 
     elif args.command == "integrations":
         print(cmd_integrations(player, args.action, args.target))
+
+    elif args.command == "season":
+        print(cmd_season(player, args.action, getattr(args, "season_id", None)))
+
+    elif args.command == "guild-create":
+        print(cmd_guild_create(player, args.name))
+    elif args.command == "guild-join":
+        print(cmd_guild_join(player, args.guild_id))
+    elif args.command == "guild-leave":
+        print(cmd_guild_leave(player))
+    elif args.command == "guild-info":
+        print(cmd_guild_info(player, getattr(args, "guild_id", None)))
+    elif args.command == "guild-list":
+        print(cmd_guild_list(player))
+    elif args.command == "guild-task":
+        print(cmd_guild_task(player, args.action, getattr(args, "guild_id", None)))
+    elif args.command == "guild-battle":
+        print(cmd_guild_battle(player, args.action, getattr(args, "guild_id", None)))
+    elif args.command == "guild-members":
+        print(cmd_guild_members(player, getattr(args, "guild_id", None)))
+    elif args.command == "guild-promote":
+        print(cmd_guild_promote(player, args.target, getattr(args, "guild_id", None)))
+    elif args.command == "guild-kick":
+        print(cmd_guild_kick(player, args.target, getattr(args, "guild_id", None)))
+    elif args.command == "guild-transfer":
+        print(cmd_guild_transfer(player, args.new_leader, getattr(args, "guild_id", None)))
+    elif args.command == "guild-disband":
+        print(cmd_guild_disband(player, args.guild_id))
 
     elif args.command == "web":
         from web_server import run_server

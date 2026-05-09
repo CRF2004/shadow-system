@@ -403,6 +403,7 @@ def contribute_to_guild_task(guild_id: str, username: str, action_type: str, qua
     now = datetime.now().isoformat()
 
     result = {
+        "success": True,
         "progress": task["current"],
         "target": task["target"],
         "completed": completed,
@@ -637,3 +638,249 @@ def add_guild_log(guild_id: str, message: str) -> bool:
         json.dumps(guild, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     return True
+
+
+# ── Guild Season Rankings ──────────────────────────────────────────────────
+# Weekly/monthly/all-time leaderboards with seasonal reset rewards.
+
+def _seasons_dir() -> Path:
+    d = config.STATE_DIR / "seasons"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+def _season_file(season_id: str) -> Path:
+    return _seasons_dir() / f"{season_id}.json"
+
+
+def _get_current_week() -> str:
+    """Get current ISO week string (e.g. '2026-W19')."""
+    today = date.today()
+    iso = today.isocalendar()
+    return f"{iso[0]}-W{iso[1]:02d}"
+
+
+def _get_current_month() -> str:
+    """Get current month string (e.g. '2026-05')."""
+    return date.today().strftime("%Y-%m")
+
+
+def _ensure_season(season_id: str, season_type: str = "weekly") -> dict:
+    """Create season file if it doesn't exist."""
+    sf = _season_file(season_id)
+    if sf.exists():
+        return json.loads(sf.read_text(encoding="utf-8"))
+
+    season = {
+        "id": season_id,
+        "type": season_type,
+        "startedAt": datetime.now().isoformat(),
+        "guildContributions": {},  # guild_id -> contribution this season
+        "memberContributions": {},  # username -> contribution this season
+        "endedAt": None,
+        "rankings": None,
+    }
+    sf.write_text(json.dumps(season, indent=2, ensure_ascii=False), encoding="utf-8")
+    return season
+
+
+def _record_season_contribution(season_id: str, guild_id: str, username: str, amount: int) -> bool:
+    """Record guild/member contribution to a season."""
+    sf = _season_file(season_id)
+    if not sf.exists():
+        return False
+
+    season = json.loads(sf.read_text(encoding="utf-8"))
+    season.setdefault("guildContributions", {})
+    season.setdefault("memberContributions", {})
+    season["guildContributions"][guild_id] = season["guildContributions"].get(guild_id, 0) + amount
+    season["memberContributions"][username] = season["memberContributions"].get(username, 0) + amount
+
+    sf.write_text(json.dumps(season, indent=2, ensure_ascii=False), encoding="utf-8")
+    return True
+
+
+def get_season_guild_ranking(season_id: str | None = None, limit: int = 20) -> list[dict]:
+    """Get guild rankings for a season."""
+    if season_id is None:
+        season_id = _get_current_week()
+
+    sf = _season_file(season_id)
+    if not sf.exists():
+        return []
+
+    season = json.loads(sf.read_text(encoding="utf-8"))
+    contributions = season.get("guildContributions", {})
+
+    rankings = []
+    for guild_id, contrib in contributions.items():
+        guild = get_guild(guild_id)
+        if guild:
+            rankings.append({
+                "guildId": guild_id,
+                "guildName": guild["name"],
+                "rank": guild["rank"],
+                "contribution": contrib,
+                "members": len(guild["members"]),
+            })
+
+    rankings.sort(key=lambda x: x["contribution"], reverse=True)
+    return rankings[:limit]
+
+
+def get_season_member_ranking(season_id: str | None = None, limit: int = 20) -> list[dict]:
+    """Get member rankings for a season."""
+    if season_id is None:
+        season_id = _get_current_week()
+
+    sf = _season_file(season_id)
+    if not sf.exists():
+        return []
+
+    season = json.loads(sf.read_text(encoding="utf-8"))
+    contributions = season.get("memberContributions", {})
+
+    rankings = []
+    for username, contrib in contributions.items():
+        rankings.append({
+            "username": username,
+            "contribution": contrib,
+        })
+
+    rankings.sort(key=lambda x: x["contribution"], reverse=True)
+    return rankings[:limit]
+
+
+def end_season(season_id: str) -> dict:
+    """End a season and calculate final rankings. Returns reward info."""
+    sf = _season_file(season_id)
+    if not sf.exists():
+        return {"success": False, "message": "赛季不存在"}
+
+    season = json.loads(sf.read_text(encoding="utf-8"))
+    if season.get("endedAt"):
+        return {"success": False, "message": "赛季已结束"}
+
+    season["endedAt"] = datetime.now().isoformat()
+
+    # Calculate guild rankings
+    guild_rankings = get_season_guild_ranking(season_id)
+    member_rankings = get_season_member_ranking(season_id)
+
+    season["rankings"] = {
+        "guilds": guild_rankings,
+        "members": member_rankings,
+        "endedAt": season["endedAt"],
+    }
+
+    sf.write_text(json.dumps(season, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # Calculate rewards
+    rewards = {
+        "guildRewards": {},
+        "memberRewards": {},
+    }
+
+    # Top 3 guilds get rewards
+    reward_multipliers = {0: 5000, 1: 3000, 2: 1500}
+    for i, g in enumerate(guild_rankings[:3]):
+        reward = reward_multipliers.get(i, 500)
+        rewards["guildRewards"][g["guildId"]] = {
+            "rank": i + 1,
+            "exp": reward,
+            "gold": reward // 5,
+        }
+
+    # Top 5 members get rewards
+    member_multipliers = {0: 2000, 1: 1000, 2: 500, 3: 300, 4: 200}
+    for i, m in enumerate(member_rankings[:5]):
+        reward = member_multipliers.get(i, 100)
+        rewards["memberRewards"][m["username"]] = {
+            "rank": i + 1,
+            "exp": reward,
+            "gold": reward // 5,
+        }
+
+    return {"success": True, "season": season_id, "rewards": rewards, "rankings": season["rankings"]}
+
+
+def get_season_info(season_id: str | None = None) -> dict:
+    """Get current or specified season info."""
+    if season_id is None:
+        season_id = _get_current_week()
+
+    sf = _season_file(season_id)
+    if not sf.exists():
+        return {"success": False, "message": "赛季不存在", "seasonId": season_id}
+
+    season = json.loads(sf.read_text(encoding="utf-8"))
+    return {
+        "success": True,
+        "id": season["id"],
+        "type": season["type"],
+        "startedAt": season["startedAt"],
+        "endedAt": season.get("endedAt"),
+        "guildCount": len(season.get("guildContributions", {})),
+        "memberCount": len(season.get("memberContributions", {})),
+    }
+
+
+def get_active_season_id() -> str:
+    """Get the currently active season ID."""
+    return _get_current_week()
+
+
+# ── Guild Auto-Progress (integrates with record command) ──────────────────
+
+def auto_progress_guild(player: dict, action_type: str, quantity: int) -> dict:
+    """Automatically progress guild task/boss when user records an action.
+    Returns dict with progress info."""
+    username = player.get("username", "fallback")
+    guild = get_user_guild(username)
+
+    if not guild:
+        return {"success": True, "inGuild": False}
+
+    result = {
+        "success": True,
+        "inGuild": True,
+        "guildId": guild["id"],
+        "guildName": guild["name"],
+        "taskProgress": None,
+        "bossDamage": None,
+    }
+
+    # Progress guild task if active and type matches
+    if guild.get("activeTask"):
+        task = guild["activeTask"]
+        if task["type"] == action_type:
+            task_result = contribute_to_guild_task(guild["id"], username, action_type, quantity)
+            if task_result.get("success"):
+                result["taskProgress"] = {
+                    "progress": task_result.get("progress", 0),
+                    "target": task_result.get("target", 0),
+                    "completed": task_result.get("completed", False),
+                }
+                if task_result.get("completed"):
+                    result["taskProgress"]["message"] = task_result.get("message", "公会任务完成!")
+                    player["guildTasksCompleted"] = player.get("guildTasksCompleted", 0) + 1
+
+    # Deal boss damage if active boss
+    if guild.get("activeBoss"):
+        boss_result = deal_boss_damage(guild["id"], username, action_type, quantity)
+        if boss_result.get("success"):
+            result["bossDamage"] = {
+                "damage": boss_result.get("damage", 0),
+                "bossHp": boss_result.get("bossHp", 0),
+                "bossMaxHp": boss_result.get("bossMaxHp", 0),
+                "defeated": boss_result.get("defeated", False),
+            }
+            if boss_result.get("defeated"):
+                result["bossDamage"]["message"] = boss_result.get("message", "Boss 被击败!")
+                player["guildBossesDefeated"] = player.get("guildBossesDefeated", 0) + 1
+
+    # Record season contribution
+    season_id = get_active_season_id()
+    if result.get("taskProgress") or result.get("bossDamage"):
+        _record_season_contribution(season_id, guild["id"], username, quantity)
+
+    return result

@@ -52,7 +52,7 @@ from guild import (
     get_member_rankings, transfer_leadership, kick_member, promote_member,
     start_guild_task, contribute_to_guild_task,
     start_guild_battle, deal_boss_damage,
-    add_guild_log,
+    add_guild_log, auto_progress_guild,
 )
 from events import event_bus, broadcast, format_sse, format_heartbeat
 
@@ -313,6 +313,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         new_ach = check_achievements(player)
         defeated = check_boss_defeat(player)
 
+        # Auto-progress guild task/boss
+        guild_result = auto_progress_guild(player, action_type, quantity)
+
         self._save_player(player)
 
         # Broadcast events
@@ -329,6 +332,15 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         if task_result.get("all_done"):
             broadcast("daily_complete", {"date": date.today().isoformat()})
 
+        # Broadcast guild events
+        if guild_result.get("success") and guild_result.get("inGuild"):
+            broadcast("guild_activity", {
+                "guildId": guild_result.get("guildId"),
+                "guildName": guild_result.get("guildName"),
+                "taskProgress": guild_result.get("taskProgress"),
+                "bossDamage": guild_result.get("bossDamage"),
+            })
+
         broadcast("activity", {
             "type": action_type,
             "quantity": quantity,
@@ -341,6 +353,7 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             "levelups": levelup_msgs,
             "taskProgress": task_result,
             "dungeonProgress": dungeon_result,
+            "guildProgress": guild_result,
             "achievements": [{"id": a["id"], "name": a["name"]} for a in new_ach],
             "bossesDefeated": [{"id": b["id"], "name": b["name"]} for b in defeated],
         })
@@ -784,6 +797,8 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
         result = create_guild(player, guild_name, username or "fallback")
         if result["success"]:
+            player["guildCreated"] = True
+            player["guildJoined"] = True
             self._save_player(player)
         self._send_json(result)
 
@@ -802,6 +817,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         username = self._get_username() or "fallback"
         player = self._load_player()
         result = join_guild(guild_id, username, player)
+        if result["success"]:
+            player["guildJoined"] = True
+            self._save_player(player)
         self._send_json(result)
 
     def _api_guild_leave(self):

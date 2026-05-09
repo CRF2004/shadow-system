@@ -214,6 +214,7 @@ def claim_daily_reward(player: dict, total_reward: int) -> list[str]:
     tasks_completed = player.get("dailyProgress", {}).get("tasks", {})
     gold_earned = sum(10 for t in tasks_completed.values() if t.get("status") == "completed")
     player["gold"] = player.get("gold", 0) + gold_earned
+    player["totalGoldEarned"] = player.get("totalGoldEarned", 0) + gold_earned
 
     # Reset daily for next day
     player["dailyProgress"] = {}
@@ -349,6 +350,18 @@ def check_achievements(player: dict) -> list[dict]:
             met = len(player.get("soldiers", [])) >= ach["condition_value"]
         elif ach["condition_type"] == "commit_count":
             met = player.get("commitCount", 0) >= ach["condition_value"]
+        elif ach["condition_type"] == "bosses_defeated":
+            met = len(player.get("bosses_defeated", [])) >= ach["condition_value"]
+        elif ach["condition_type"] == "guild_joined":
+            met = player.get("guildJoined", False)
+        elif ach["condition_type"] == "guild_created":
+            met = player.get("guildCreated", False)
+        elif ach["condition_type"] == "guild_tasks_completed":
+            met = player.get("guildTasksCompleted", 0) >= ach["condition_value"]
+        elif ach["condition_type"] == "guild_bosses_defeated":
+            met = player.get("guildBossesDefeated", 0) >= ach["condition_value"]
+        elif ach["condition_type"] == "total_gold":
+            met = player.get("totalGoldEarned", 0) >= ach["condition_value"]
 
         if met:
             unlocked.append(ach)
@@ -358,6 +371,7 @@ def check_achievements(player: dict) -> list[dict]:
         player.setdefault("achievements", []).append(ach["id"])
         add_exp(player, ach["reward_exp"])
         player["gold"] = player.get("gold", 0) + ach["reward_gold"]
+        player["totalGoldEarned"] = player.get("totalGoldEarned", 0) + ach["reward_gold"]
 
     return unlocked
 
