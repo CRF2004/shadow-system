@@ -169,17 +169,96 @@ h1,h2,h3{font-weight:600}
 .int-row .int-status{font-size:12px;padding:4px 8px;border-radius:4px}
 .int-row .int-status.on{background:rgba(46,213,115,.15);color:var(--green)}
 .int-row .int-status.off{background:rgba(255,255,255,.05);color:var(--dim)}
+
+/* ── Auth overlay ───────────────────────────────────────── */
+#auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center}
+#auth-overlay.hidden{display:none}
+.auth-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;width:380px;max-width:90vw;text-align:center}
+.auth-box h2{font-size:24px;color:var(--gold);margin-bottom:8px}
+.auth-box p{font-size:13px;color:var(--dim);margin-bottom:24px}
+.auth-box input{width:100%;background:#1a1a2e;border:1px solid var(--border);border-radius:8px;padding:12px 16px;color:var(--text);font-size:15px;outline:none;margin-bottom:12px}
+.auth-box input:focus{border-color:var(--gold)}
+.auth-box .btn-primary{width:100%;padding:12px;font-size:15px;margin-top:4px}
+.auth-box .switch{font-size:13px;color:var(--dim);margin-top:16px}
+.auth-box .switch a{color:var(--gold);cursor:pointer;text-decoration:none}
+.auth-box .auth-error{color:var(--red);font-size:13px;margin-top:8px;min-height:20px}
+.auth-box .auth-icon{font-size:48px;margin-bottom:12px}
+
+/* ── Guild tab ──────────────────────────────────────────── */
+.guild-header{display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.guild-badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
+.guild-badge.creatable{background:rgba(55,66,250,.2);color:var(--blue)}
+.guild-badge.member{background:rgba(255,215,0,.15);color:var(--gold)}
+.guild-badge.leader{background:rgba(255,215,0,.25);color:var(--gold);border:1px solid var(--gold)}
+.guild-member{display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;margin-bottom:6px}
+.guild-member .role{font-size:11px;padding:2px 6px;border-radius:4px;font-weight:600}
+.guild-member .role.leader{background:rgba(255,215,0,.2);color:var(--gold)}
+.guild-member .role.officer{background:rgba(168,85,247,.2);color:var(--purple)}
+.guild-member .role.member{background:rgba(255,255,255,.05);color:var(--dim)}
+.guild-member .m-info{flex:1;font-size:14px}
+.guild-member .m-contrib{font-size:12px;color:var(--gold)}
+.guild-member .m-actions{display:flex;gap:4px}
+.guild-task-bar{background:#1a1a2e;border-radius:6px;height:24px;overflow:hidden;position:relative;margin:8px 0}
+.guild-task-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--purple),var(--blue));transition:width .5s;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+.guild-boss-hp{background:#1a1a2e;border-radius:6px;height:28px;overflow:hidden;position:relative;margin:8px 0}
+.guild-boss-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--red),var(--orange));transition:width .5s;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff}
+.guild-log{font-size:12px;color:var(--dim);padding:6px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.guild-log:last-child{border-bottom:none}
+.guild-log .time{color:var(--dim);margin-right:8px}
+
+/* ── Guild list cards ───────────────────────────────────── */
+.guild-card{display:flex;align-items:center;gap:14px;padding:14px 18px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:10px;margin-bottom:8px}
+.guild-card .g-name{font-size:15px;font-weight:600;flex:1}
+.guild-card .g-info{font-size:12px;color:var(--dim)}
+.guild-card .g-rank{font-size:11px;padding:3px 8px;border-radius:4px;background:rgba(255,215,0,.1);color:var(--gold)}
+
+/* ── Event feed ─────────────────────────────────────────── */
+#event-feed{position:fixed;bottom:0;right:0;width:360px;max-height:300px;overflow-y:auto;background:rgba(10,10,18,.95);border-top:1px solid var(--border);border-left:1px solid var(--border);border-radius:12px 0 0 0;padding:12px;font-size:12px;z-index:50;display:none}
+#event-feed.visible{display:block}
+#event-feed .evt{padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+#event-feed .evt:last-child{border-bottom:none}
+#event-feed .evt-type{color:var(--purple);font-weight:600;margin-right:6px}
+#event-feed .evt-data{color:var(--text)}
+@media(max-width:768px){#event-feed{width:100%;border-radius:0}}
 </style>
 </head>
 <body>
+<!-- Auth overlay (shown when not logged in) -->
+<div id="auth-overlay">
+  <div class="auth-box" id="auth-login">
+    <div class="auth-icon">⚔️</div>
+    <h2>暗影君主</h2>
+    <p>输入用户名和密码登录</p>
+    <input type="text" id="login-user" placeholder="用户名" autocomplete="username">
+    <input type="password" id="login-pass" placeholder="密码" autocomplete="current-password">
+    <button class="btn btn-primary" onclick="doLogin()">登录</button>
+    <div class="auth-error" id="login-error"></div>
+    <div class="switch">没有账号？<a onclick="showRegister()">注册</a></div>
+  </div>
+  <div class="auth-box" id="auth-register" style="display:none">
+    <div class="auth-icon">⚔️</div>
+    <h2>注册账号</h2>
+    <p>创建新角色开始冒险</p>
+    <input type="text" id="reg-user" placeholder="用户名">
+    <input type="text" id="reg-name" placeholder="显示名称 (可选)">
+    <input type="password" id="reg-pass" placeholder="密码 (至少4位)">
+    <input type="password" id="reg-pass2" placeholder="确认密码">
+    <button class="btn btn-primary" onclick="doRegister()">创建角色</button>
+    <div class="auth-error" id="reg-error"></div>
+    <div class="switch">已有账号？<a onclick="showLogin()">登录</a></div>
+  </div>
+</div>
+
 <div class="app">
   <!-- Header -->
   <div class="header">
     <div class="logo">Shadow CLI <span id="header-ver"></span></div>
     <div class="right">
+      <span id="header-user" class="text-dim" style="font-size:12px"></span>
       <span class="gold-icon">金币: <b id="header-gold">0</b></span>
       <span>宝石: <b id="header-gems">0</b></span>
       <span>连击: <b id="header-streak">0</b>天</span>
+      <button class="btn btn-sm btn-danger" onclick="doLogout()">退出</button>
     </div>
   </div>
 
@@ -196,6 +275,7 @@ h1,h2,h3{font-weight:600}
       <a data-tab="dungeons"><span class="icon">🏰</span> 副本</a>
       <a data-tab="bosses"><span class="icon">💀</span> Boss</a>
       <a data-tab="integrations"><span class="icon">🔗</span> 集成</a>
+      <a data-tab="guild"><span class="icon">🏰</span> 公会</a>
     </nav>
   </div>
 
@@ -330,10 +410,24 @@ h1,h2,h3{font-weight:600}
       <div class="grid-3 mt-16" id="int-actions"></div>
     </div>
 
+    <!-- Guild -->
+    <div class="tab-content" id="tab-guild">
+      <div class="section-title"><span class="emoji">🏰</span> 公会系统</div>
+      <!-- Guild status -->
+      <div id="guild-status"></div>
+      <!-- Guild create/join -->
+      <div id="guild-join-panel"></div>
+      <!-- Guild detail -->
+      <div id="guild-detail"></div>
+      <!-- Guild rankings -->
+      <div id="guild-rankings" class="mt-16"></div>
+    </div>
+
   </div>
 </div>
 
 <div id="toast-container"></div>
+<div id="event-feed"></div>
 
 <script>
 const API = '/api';
@@ -364,15 +458,96 @@ document.querySelectorAll('#nav a').forEach(a => {
     else if(tab==='dungeons') loadDungeons();
     else if(tab==='bosses') loadBosses();
     else if(tab==='integrations') loadIntegrations();
+    else if(tab==='guild') loadGuild();
   });
 });
 
+/* ── Auth State ─────────────────────────────────────────── */
+const TOKEN_KEY = 'shadow_token';
+function getToken(){ return localStorage.getItem(TOKEN_KEY) || ''; }
+function setToken(t){ if(t){ localStorage.setItem(TOKEN_KEY, t); } else { localStorage.removeItem(TOKEN_KEY); } }
+
+function isLoggedIn(){ return !!getToken(); }
+
+function showAuthOverlay(show){
+  const overlay = document.getElementById('auth-overlay');
+  if(show) overlay.classList.remove('hidden');
+  else overlay.classList.add('hidden');
+}
+
+function showLogin(){
+  document.getElementById('auth-login').style.display='';
+  document.getElementById('auth-register').style.display='none';
+  document.getElementById('login-error').textContent='';
+}
+function showRegister(){
+  document.getElementById('auth-login').style.display='none';
+  document.getElementById('auth-register').style.display='';
+  document.getElementById('reg-error').textContent='';
+}
+
+async function doLogin(){
+  const user = document.getElementById('login-user').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  if(!user||!pass){ document.getElementById('login-error').textContent='请填写用户名和密码'; return; }
+  const r = await apiPostRaw('/auth/login', {username: user, password: pass});
+  if(r.success && r.token){
+    setToken(r.token);
+    showAuthOverlay(false);
+    toast('登录成功！', 'success');
+    loadDashboard();
+  } else {
+    document.getElementById('login-error').textContent = r.message || '登录失败';
+  }
+}
+
+async function doRegister(){
+  const user = document.getElementById('reg-user').value.trim();
+  const name = document.getElementById('reg-name').value.trim();
+  const pass = document.getElementById('reg-pass').value;
+  const pass2 = document.getElementById('reg-pass2').value;
+  if(!user||!pass){ document.getElementById('reg-error').textContent='请填写用户名和密码'; return; }
+  if(pass!==pass2){ document.getElementById('reg-error').textContent='两次密码不一致'; return; }
+  const r = await apiPostRaw('/auth/register', {username: user, password: pass, displayName: name||user});
+  if(r.success && r.token){
+    setToken(r.token);
+    showAuthOverlay(false);
+    toast(r.message || '注册成功！', 'success');
+    loadDashboard();
+  } else {
+    document.getElementById('reg-error').textContent = r.message || '注册失败';
+  }
+}
+
+function doLogout(){
+  setToken('');
+  showAuthOverlay(true);
+  showLogin();
+  toast('已退出登录', 'info');
+}
+
 /* ── Fetch helpers ──────────────────────────────────────── */
+function authHeaders(){
+  const h = {'Content-Type':'application/json'};
+  const t = getToken();
+  if(t) h['Authorization'] = 'Bearer ' + t;
+  return h;
+}
+
 async function apiGet(path){
-  const r = await fetch(API + path);
+  const r = await fetch(API + path, {headers: authHeaders()});
   return r.json();
 }
 async function apiPost(path, body){
+  const r = await fetch(API + path, {
+    method:'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+/* Raw POST without auth (for login/register) */
+async function apiPostRaw(path, body){
   const r = await fetch(API + path, {
     method:'POST',
     headers:{'Content-Type':'application/json'},
@@ -812,8 +987,318 @@ async function doBrowser(){
   }
 }
 
+/* ── Guild System ───────────────────────────────────────── */
+async function loadGuild(){
+  if(!isLoggedIn()){ loadGuildJoinPanel(); return; }
+
+  // Check if user is in a guild
+  const my = await apiPost('/guilds/my', {});
+  const statusEl = document.getElementById('guild-status');
+  const detailEl = document.getElementById('guild-detail');
+  const joinEl = document.getElementById('guild-join-panel');
+  const rankEl = document.getElementById('guild-rankings');
+
+  if(my.success && my.id){
+    // User is in a guild — show detail
+    statusEl.innerHTML = `<div class="guild-header">
+      <h2>${my.name}</h2>
+      <span class="guild-badge member">${my.rank}</span>
+      <span class="text-dim">${my.memberCount} 人 | 贡献 ${my.contribution}</span>
+    </div>`;
+    joinEl.innerHTML = '';
+    rankEl.innerHTML = '';
+    loadGuildDetail(my);
+  } else {
+    // Not in a guild — show create/join + rankings
+    statusEl.innerHTML = '';
+    detailEl.innerHTML = '';
+    loadGuildJoinPanel();
+    loadGuildRankings();
+  }
+}
+
+async function loadGuildJoinPanel(){
+  const el = document.getElementById('guild-join-panel');
+  const d = await apiGet('/guilds');
+  let html = '<div class="card"><h3>创建公会</h3><div class="input-row"><input type="text" id="create-guild-name" placeholder="公会名称" style="width:200px"><button class="btn btn-primary" onclick="doCreateGuild()">创建</button></div></div>';
+  html += '<div class="card"><h3>加入公会</h3><div class="input-row"><input type="text" id="join-guild-id" placeholder="公会ID" style="width:150px"><button class="btn btn-primary" onclick="doJoinGuild()">加入</button></div></div>';
+
+  if(d.guilds && d.guilds.length){
+    html += '<div class="card"><h3>公会列表</h3>';
+    for(const g of d.guilds){
+      html += `<div class="guild-card">
+        <div class="g-rank">${g.rank}</div>
+        <div class="g-name">${g.name}</div>
+        <div class="g-info">${g.members}/${g.maxMembers} 人 | 贡献: ${g.contribution}</div>
+        <button class="btn btn-sm" onclick="document.getElementById('join-guild-id').value='${g.id}';doJoinGuild()">加入</button>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+async function loadGuildDetail(my){
+  const el = document.getElementById('guild-detail');
+  const info = await apiPost('/guilds/info', {guildId: my.id});
+
+  // Active task
+  let taskHtml = '';
+  if(my.activeTask){
+    const t = my.activeTask;
+    const pct = Math.min(100, Math.round(t.current / t.target * 100));
+    taskHtml = `<div class="card"><h3>公会任务: ${t.name}</h3>
+      <div class="text-dim">${t.desc}</div>
+      <div class="guild-task-bar"><div class="guild-task-fill" style="width:${pct}%">${t.current}/${t.target}</div></div>
+      <div class="input-row" style="margin-top:8px">
+        <label>贡献</label>
+        <select id="guild-action-type">
+          <option value="commit">Commit</option><option value="coding">编码</option>
+          <option value="reading">阅读</option><option value="exercise">运动</option>
+          <option value="vocabulary">背单词</option>
+        </select>
+        <input type="number" id="guild-action-qty" value="1" min="1" style="width:80px">
+        <button class="btn btn-primary" onclick="doGuildContribute()">贡献</button>
+      </div>
+    </div>`;
+  } else {
+    taskHtml = `<div class="card"><h3>公会任务</h3>
+      <div class="text-dim">当前无进行中的任务</div>
+      <button class="btn btn-primary" onclick="doStartGuildTask()">开启新任务</button>
+    </div>`;
+  }
+
+  // Active boss
+  let bossHtml = '';
+  if(my.activeBoss){
+    const b = my.activeBoss;
+    const pct = Math.max(0, Math.round(b.currentHp / b.maxHp * 100));
+    bossHtml = `<div class="card" style="border-color:var(--red)">
+      <h3 style="color:var(--red)">⚔️ Boss 战: ${b.name}</h3>
+      <div class="guild-boss-hp"><div class="guild-boss-fill" style="width:${pct}%">${b.currentHp}/${b.maxHp}</div></div>
+      <div class="input-row" style="margin-top:8px">
+        <label>攻击</label>
+        <select id="guild-action-type">
+          <option value="commit">Commit</option><option value="coding">编码</option>
+          <option value="exercise">运动</option><option value="reading">阅读</option>
+          <option value="vocabulary">背单词</option>
+        </select>
+        <input type="number" id="guild-action-qty" value="1" min="1" style="width:80px">
+        <button class="btn btn-primary" style="border-color:var(--red);color:var(--red)" onclick="doGuildDealDamage()">攻击</button>
+      </div>
+    </div>`;
+  } else {
+    bossHtml = `<div class="card"><h3>Boss 战</h3>
+      <div class="text-dim">当前无 Boss 战</div>
+      <button class="btn btn-primary" style="border-color:var(--red);color:var(--red)" onclick="doStartGuildBattle()">发起 Boss 战</button>
+    </div>`;
+  }
+
+  // Members
+  let membersHtml = '<div class="card"><h3>成员列表 (' + my.memberCount + '/' + (my.maxMembers || 20) + ')</h3>';
+  for(const m of my.members){
+    const roleClass = m.role;
+    const roleName = {leader:'👑 领袖',officer:'⭐ 副手',member:'成员'}[m.role]||m.role;
+    membersHtml += `<div class="guild-member">
+      <span class="role ${roleClass}">${roleName}</span>
+      <span class="m-info">${m.username}</span>
+      <span class="m-contrib">贡献: ${m.contribution||0}</span>
+      ${my.id && info && info.leader === info.members.find(x=>x.username===my.id)?.username ?
+        `<span class="m-actions">
+          ${m.role!=='leader'?`<button class="btn btn-sm" onclick="doPromoteMember('${m.username}')">副手</button>`:''}
+          ${m.role!=='leader'?`<button class="btn btn-sm btn-danger" onclick="doKickMember('${m.username}')">踢出</button>`:''}
+        </span>` : ''}
+    </div>`;
+  }
+  membersHtml += '</div>';
+
+  // Logs
+  let logsHtml = '';
+  if(info && info.logs && info.logs.length){
+    logsHtml = '<div class="card"><h3>最近动态</h3>';
+    for(const l of info.logs.slice(-10).reverse()){
+      const time = new Date(l.timestamp).toLocaleString('zh-CN');
+      logsHtml += `<div class="guild-log"><span class="time">${time}</span>${l.message}</div>`;
+    }
+    logsHtml += '</div>';
+  }
+
+  // Actions
+  let actionsHtml = `<div class="btn-group">
+    <button class="btn btn-primary" onclick="doLeaveGuild()">离开公会</button>
+  </div>`;
+
+  el.innerHTML = taskHtml + bossHtml + membersHtml + logsHtml + actionsHtml;
+}
+
+async function doCreateGuild(){
+  const name = document.getElementById('create-guild-name').value.trim();
+  if(!name){ toast('请输入公会名称','error'); return; }
+  const r = await apiPost('/guilds/create', {name});
+  toast(r.message, r.success ? 'success' : 'error');
+  if(r.success) loadGuild();
+}
+
+async function doJoinGuild(){
+  const id = document.getElementById('join-guild-id').value.trim();
+  if(!id){ toast('请输入公会ID','error'); return; }
+  const r = await apiPost('/guilds/join', {guildId: id});
+  toast(r.message, r.success ? 'success' : 'error');
+  if(r.success) loadGuild();
+}
+
+async function doLeaveGuild(){
+  if(!confirm('确定离开公会？')) return;
+  const my = await apiPost('/guilds/my', {});
+  if(!my.success) return;
+  const r = await apiPost('/guilds/leave', {guildId: my.id});
+  toast(r.message, r.success ? 'success' : 'error');
+  if(r.success) loadGuild();
+}
+
+async function doStartGuildTask(){
+  const my = await apiPost('/guilds/my', {});
+  if(!my.success) return;
+  const r = await apiPost('/guilds/start-task', {guildId: my.id});
+  toast(r.message, r.success ? 'success' : 'error');
+  if(r.success) loadGuild();
+}
+
+async function doGuildContribute(){
+  const my = await apiPost('/guilds/my', {});
+  if(!my.success) return;
+  const type = document.getElementById('guild-action-type').value;
+  const qty = parseInt(document.getElementById('guild-action-qty').value)||1;
+  const r = await apiPost('/guilds/contribute', {guildId: my.id, actionType: type, quantity: qty});
+  toast(r.message || `贡献: ${r.progress}/${r.target}`, r.completed ? 'levelup' : 'success');
+  if(r.rewards){
+    for(const [u, rw] of Object.entries(r.rewards)){
+      toast(`${u}: +${rw.exp} EXP, +${rw.gold} 金币`, 'success');
+    }
+  }
+  loadGuild();
+}
+
+async function doStartGuildBattle(){
+  const my = await apiPost('/guilds/my', {});
+  if(!my.success) return;
+  const r = await apiPost('/guilds/start-battle', {guildId: my.id});
+  toast(r.message, r.success ? 'success' : 'error');
+  if(r.success) loadGuild();
+}
+
+async function doGuildDealDamage(){
+  const my = await apiPost('/guilds/my', {});
+  if(!my.success) return;
+  const type = document.getElementById('guild-action-type').value;
+  const qty = parseInt(document.getElementById('guild-action-qty').value)||1;
+  const r = await apiPost('/guilds/deal-damage', {guildId: my.id, actionType: type, quantity: qty});
+  toast(r.message || `造成 ${r.damage} 伤害 (HP: ${r.bossHp}/${r.bossMaxHp})`, r.defeated ? 'levelup' : 'success');
+  if(r.rewards){
+    for(const [u, rw] of Object.entries(r.rewards)){
+      toast(`${u}: +${rw.exp} EXP, +${rw.gold} 金币`, 'success');
+    }
+  }
+  loadGuild();
+}
+
+async function doPromoteMember(username){
+  if(!confirm(`任命 ${username} 为副手？`)) return;
+  const my = await apiPost('/guilds/my', {});
+  if(!my.success) return;
+  const r = await apiPost('/guilds/promote', {guildId: my.id, target: username});
+  toast(r.message, r.success ? 'success' : 'error');
+  if(r.success) loadGuild();
+}
+
+async function doKickMember(username){
+  if(!confirm(`踢出 ${username}？`)) return;
+  const my = await apiPost('/guilds/my', {});
+  if(!my.success) return;
+  const r = await apiPost('/guilds/kick', {guildId: my.id, target: username});
+  toast(r.message, r.success ? 'success' : 'error');
+  if(r.success) loadGuild();
+}
+
+async function loadGuildRankings(){
+  const el = document.getElementById('guild-rankings');
+  const d = await apiGet('/guilds/rankings');
+  if(!d.rankings || !d.rankings.length){
+    el.innerHTML = '<div class="card"><div class="empty">暂无公会</div></div>';
+    return;
+  }
+  let html = '<div class="card"><h3>公会排行榜</h3>';
+  for(let i = 0; i < d.rankings.length; i++){
+    const g = d.rankings[i];
+    const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+    html += `<div class="guild-card">
+      <span style="font-size:18px;width:24px">${medal||'#'+(i+1)}</span>
+      <div class="g-rank">${g.rank}</div>
+      <div class="g-name">${g.name}</div>
+      <div class="g-info">${g.members} 人 | 贡献: ${g.contribution}</div>
+    </div>`;
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+/* ── SSE Event Feed ─────────────────────────────────────── */
+let eventSource = null;
+function connectSSE(){
+  if(eventSource){ eventSource.close(); eventSource = null; }
+  const t = getToken();
+  if(!t) return;
+
+  // Create a custom SSE connection with auth
+  const evtSrc = new EventSource(API + '/events');
+  eventSource = evtSrc;
+  const feedEl = document.getElementById('event-feed');
+
+  // Show feed on hover or toggle (auto-show on mobile)
+  feedEl.classList.add('visible');
+  setTimeout(() => { if(eventSource === evtSrc) feedEl.classList.remove('visible'); }, 10000);
+
+  // Generic listener for all event types
+  const eventTypes = ['level_up','achievement','activity','daily_complete',
+    'guild_task_progress','guild_task_complete','guild_battle_start',
+    'guild_battle_damage','guild_battle_victory'];
+
+  for(const type of eventTypes){
+    // Since EventSource maps event types to custom events, we listen to all
+  }
+
+  // Listen for any SSE event
+  evtSource.addEventListener('message', (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      const div = document.createElement('div');
+      div.className = 'evt';
+      div.innerHTML = `<span class="evt-type">${e.type||'event'}</span><span class="evt-data">${JSON.stringify(data).substring(0,120)}</span>`;
+      feedEl.prepend(div);
+      // Keep only last 50 events
+      while(feedEl.children.length > 50) feedEl.removeChild(feedEl.lastChild);
+      feedEl.classList.add('visible');
+      setTimeout(() => feedEl.classList.remove('visible'), 5000);
+    } catch(err) {}
+  });
+
+  evtSource.onerror = () => {
+    evtSource.close();
+    eventSource = null;
+    // Reconnect after 5s
+    setTimeout(connectSSE, 5000);
+  };
+}
+
 /* ── Init ───────────────────────────────────────────────── */
-loadDashboard();
+if(isLoggedIn()){
+  showAuthOverlay(false);
+  loadDashboard();
+  connectSSE();
+} else {
+  showAuthOverlay(true);
+  showLogin();
+}
 
 /* Auto-refresh status every 30s */
 setInterval(() => {
