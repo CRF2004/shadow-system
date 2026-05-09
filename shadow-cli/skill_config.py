@@ -265,16 +265,20 @@ KEYWORD_MAP = {
     # vocabulary
     "单词": "vocabulary", "word": "vocabulary", "vocab": "vocabulary", "英语": "vocabulary",
     "背词": "vocabulary", "生字": "vocabulary", "词汇": "vocabulary",
-    # coding
+    # coding (compound keywords listed before short ones)
+    "写代码": "coding", "代码开发": "coding",
     "代码": "coding", "coding": "coding", "编程": "coding", "program": "coding",
     "写码": "coding", "开发": "coding", "写程序": "coding",
     # exercise
+    "运动健身": "exercise",
     "运动": "exercise", "exercise": "exercise", "健身": "exercise",
     " workout": "exercise", "锻炼": "exercise", "训练": "exercise",
-    # reading
+    # reading (compound keywords listed before short ones)
+    "技术阅读": "reading", "专业阅读": "reading",
     "阅读": "reading", "read": "reading", "读书": "reading", "看书": "reading",
     "书籍": "reading", "文献": "reading",
-    # commit
+    # commit (compound keywords listed before short ones)
+    "提交代码": "commit", "Git提交": "commit", "代码提交": "commit",
     "提交": "commit", "commit": "commit", "git": "commit", "push": "commit",
     # english_speaking
     "口语": "english_speaking", "speaking": "english_speaking",
@@ -302,14 +306,26 @@ KEYWORD_MAP = {
 
 
 def match_by_keywords(description: str) -> Optional[dict]:
-    """Try to match a description to a built-in template via keywords."""
+    """Try to match a description to a built-in template via keywords.
+
+    Uses longest-match-first strategy: the longest keyword found in the
+    description wins. This prevents short keywords from shadowing longer
+    ones (e.g. "代码" shouldn't match before "提交" in "提交代码").
+    """
     desc = description.strip()
+    best_match = None
+    best_len = 0
+
     for keyword, template_id in KEYWORD_MAP.items():
         if keyword in desc:
             t = get_template(template_id)
             if t:
-                return t
-    return None
+                # Use keyword length as score; longer matches are more specific
+                if len(keyword) > best_len:
+                    best_match = t
+                    best_len = len(keyword)
+
+    return best_match
 
 
 def match_fuzzy(description: str) -> Optional[dict]:
@@ -445,12 +461,9 @@ def generate_config(description: str) -> dict:
     # 2. Try keyword match
     matched = match_by_keywords(description) or match_fuzzy(description)
     if matched:
-        cfg = dict(matched)
-        # If description differs from template name, create a variant
-        if description.strip().lower() != matched["name"].lower() and len(description.strip()) > 2:
-            cfg["id"] = description.strip().lower().replace(" ", "_")[:30]
-            cfg["name"] = description.strip()
-        return cfg
+        # Always keep the built-in template as-is (id + name + params).
+        # This ensures EXP calculation and task matching work correctly.
+        return dict(matched)
 
     # 3. Generic fallback
     return {
