@@ -17,7 +17,7 @@ import sys
 import uuid
 import time
 import threading
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from datetime import date, datetime
 from pathlib import Path
 
@@ -1190,7 +1190,7 @@ def cmd_daily_tasks(player: dict) -> list[dict]:
 
 def run_server(port: int = 8080):
     """Start the web server."""
-    server = HTTPServer(("0.0.0.0", port), ShadowAPIHandler)
+    server = ThreadingHTTPServer(("0.0.0.0", port), ShadowAPIHandler)
     print(f"""
 ┌──────────────────────────────────────────────┐
 │  Shadow CLI v{VERSION} - 暗影君主 Web 面板        │
