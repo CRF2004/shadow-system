@@ -23,13 +23,13 @@ class TestDungeonGeneration(unittest.TestCase):
     """Test dungeon instance generation."""
 
     def test_get_available_dungeons(self):
-        """Low level player should see daily dungeons."""
-        from dungeon import get_available_dungeons, DUNGEONS
+        """Low level player should see daily dungeons (fallback)."""
+        from dungeon import get_available_dungeons, _FALLBACK_DUNGEONS
         p = create_default_player()
         p["level"] = 1
         available = get_available_dungeons(p)
         ids = [d["id"] for d in available]
-        # Daily dungeons should be available
+        # Daily dungeons should be available (fallback)
         self.assertIn("code_dungeon", ids)
         self.assertIn("exercise_trial", ids)
         # Weekly and boss should NOT be available
@@ -120,16 +120,16 @@ class TestBossDefeat(unittest.TestCase):
 
     def test_check_boss_defeat(self):
         """Test boss defeat triggers."""
-        from dungeon import check_boss_defeat, BOSSES
+        from dungeon import check_boss_defeat
         p = create_default_player()
+        p["level"] = 10  # Need level 10 for bug_king
         p["commitCount"] = 15  # Enough for bug_king
         p["bosses_defeated"] = []
 
         defeated = check_boss_defeat(p)
         boss_ids = [b["id"] for b in defeated]
-        if p["level"] >= 10:  # Bug king requires level 10
-            # Should have defeated bug_king
-            self.assertIn("bug_king", boss_ids)
+        # Should have defeated bug_king
+        self.assertIn("bug_king", boss_ids)
 
 
 # ── Shop Tests ───────────────────────────────────────────────────────────

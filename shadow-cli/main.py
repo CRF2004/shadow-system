@@ -67,8 +67,6 @@ from dungeon import (
     claim_dungeon_reward,
     get_active_bosses,
     check_boss_defeat,
-    DUNGEONS,
-    BOSSES,
 )
 from shop import (
     get_shop_items,

@@ -214,3 +214,142 @@ class TestUserTemplates:
         save_user_template({"id": "test_skill", "name": "测试技能"})
         templates = load_user_templates()
         assert len(templates) == 1
+
+
+# ── Skill-Based Dungeon Tests ───────────────────────────────────────────
+
+class TestSkillDungeons:
+    """Test dungeon generation from skill config."""
+
+    def test_no_skills_fallback(self):
+        """Player with no skills gets hardcoded fallback dungeons."""
+        from dungeon import get_available_dungeons
+        p = create_default_player()
+        p["level"] = 5
+        dungeons = get_available_dungeons(p)
+        ids = [d["id"] for d in dungeons]
+        assert "code_dungeon" in ids
+        assert "exercise_trial" in ids
+        # Weekly/boss not available at low level
+        assert "word_abyss" not in ids
+
+    def test_guitar_dungeon(self):
+        """Player with guitar skill gets guitar-themed dungeon."""
+        from dungeon import get_available_dungeons
+        p = create_default_player()
+        p["level"] = 5
+        p["skillConfig"] = {
+            "skills": [{
+                "id": "guitar", "name": "吉他", "icon": "🎸", "category": "音乐",
+                "unit": "首", "daily_target": 2, "daily_cap": 10,
+                "exp_per_unit": 2, "exp_formula": "linear",
+            }]
+        }
+        dungeons = get_available_dungeons(p)
+        assert len(dungeons) >= 1
+        daily = dungeons[0]
+        assert daily["type"] == "daily"
+        assert "吉他" in daily["name"]
+        for t in daily["tasks"]:
+            assert t["type"] == "guitar"
+
+    def test_multi_skill_dungeons(self):
+        """Player with 3+ skills gets skill-specific dungeons."""
+        from dungeon import get_available_dungeons
+        p = create_default_player()
+        p["level"] = 15
+        p["skillConfig"] = {
+            "skills": [
+                {"id": "coding", "name": "写代码", "icon": "💻", "category": "技能",
+                 "unit": "行", "daily_target": 100, "daily_cap": 200,
+                 "exp_per_unit": 0.1, "exp_formula": "linear"},
+                {"id": "commit", "name": "提交代码", "icon": "🔀", "category": "技能",
+                 "unit": "次", "daily_target": 3, "daily_cap": 250,
+                 "exp_per_unit": 50, "exp_formula": "linear"},
+                {"id": "reading", "name": "阅读", "icon": "📖", "category": "学习",
+                 "unit": "页", "daily_target": 30, "daily_cap": 150,
+                 "exp_per_unit": 1, "exp_formula": "linear"},
+            ]
+        }
+        dungeons = get_available_dungeons(p)
+        daily = [d for d in dungeons if d["type"] == "daily"]
+        weekly = [d for d in dungeons if d["type"] == "weekly"]
+        assert len(daily) == 3
+        assert len(weekly) == 1
+        for d in daily:
+            for t in d["tasks"]:
+                assert t["type"] in ["coding", "commit", "reading"]
+
+    def test_weekly_unlock_at_level(self):
+        """Weekly dungeons unlock at level 10."""
+        from dungeon import get_available_dungeons
+        p = create_default_player()
+        p["skillConfig"] = {
+            "skills": [
+                {"id": "coding", "name": "写代码", "icon": "💻", "category": "技能",
+                 "unit": "行", "daily_target": 100, "daily_cap": 200,
+                 "exp_per_unit": 0.1, "exp_formula": "linear"},
+            ]
+        }
+        p["level"] = 5
+        dungeons = get_available_dungeons(p)
+        assert all(d["type"] == "daily" for d in dungeons)
+
+        p["level"] = 10
+        dungeons = get_available_dungeons(p)
+        weekly = [d for d in dungeons if d["type"] == "weekly"]
+        assert len(weekly) == 1
+
+
+class TestSkillBosses:
+    """Test boss generation from skill config."""
+
+    def test_no_skills_fallback(self):
+        """Player with no skills gets hardcoded fallback bosses."""
+        from dungeon import get_active_bosses
+        p = create_default_player()
+        p["level"] = 10
+        bosses = get_active_bosses(p)
+        ids = [b["id"] for b in bosses]
+        assert "bug_king" in ids
+
+    def test_guitar_boss(self):
+        """Player with guitar skill gets guitar boss."""
+        from dungeon import get_active_bosses
+        p = create_default_player()
+        p["level"] = 10
+        p["skillConfig"] = {
+            "skills": [{
+                "id": "guitar", "name": "吉他", "icon": "🎸", "category": "音乐",
+                "unit": "首", "daily_target": 2, "daily_cap": 10,
+                "exp_per_unit": 2, "exp_formula": "linear",
+            }]
+        }
+        bosses = get_active_bosses(p)
+        guitar_bosses = [b for b in bosses if "吉他" in b["name"]]
+        assert len(guitar_bosses) == 1
+        assert guitar_bosses[0]["defeat_condition"] == "skill_progress"
+
+    def test_multi_skill_bosses(self):
+        """Player with 3 skills gets 3 skill bosses + streak dragon."""
+        from dungeon import get_active_bosses
+        p = create_default_player()
+        p["level"] = 10
+        p["skillConfig"] = {
+            "skills": [
+                {"id": "coding", "name": "写代码", "icon": "💻", "category": "技能",
+                 "unit": "行", "daily_target": 100, "daily_cap": 200,
+                 "exp_per_unit": 0.1, "exp_formula": "linear"},
+                {"id": "commit", "name": "提交代码", "icon": "🔀", "category": "技能",
+                 "unit": "次", "daily_target": 3, "daily_cap": 250,
+                 "exp_per_unit": 50, "exp_formula": "linear"},
+                {"id": "reading", "name": "阅读", "icon": "📖", "category": "学习",
+                 "unit": "页", "daily_target": 30, "daily_cap": 150,
+                 "exp_per_unit": 1, "exp_formula": "linear"},
+            ]
+        }
+        bosses = get_active_bosses(p)
+        skill_bosses = [b for b in bosses if b["defeat_condition"] == "skill_progress"]
+        assert len(skill_bosses) == 3
+        boss_ids = [b["defeat_skill_id"] for b in skill_bosses]
+        assert set(boss_ids) == {"coding", "commit", "reading"}
