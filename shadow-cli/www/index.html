@@ -184,6 +184,41 @@ h1,h2,h3{font-weight:600}
 .auth-box .auth-error{color:var(--red);font-size:13px;margin-top:8px;min-height:20px}
 .auth-box .auth-icon{font-size:48px;margin-bottom:12px}
 
+/* ── Onboarding overlay ───────────────────── */
+#onboard-overlay{position:fixed;inset:0;background:var(--bg);z-index:8888;display:flex;align-items:center;justify-content:center;overflow-y:auto;padding:24px}
+#onboard-overlay.hidden{display:none}
+.onboard-box{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:32px;width:560px;max-width:95vw;text-align:center}
+.onboard-box h2{font-size:22px;color:var(--gold);margin-bottom:6px}
+.onboard-box p{font-size:13px;color:var(--dim);margin-bottom:20px}
+.onboard-steps{display:flex;justify-content:center;gap:8px;margin-bottom:24px}
+.onboard-step{width:10px;height:10px;border-radius:50%;background:var(--border);transition:.2s}
+.onboard-step.active{background:var(--gold);width:28px;border-radius:5px}
+.onboard-step.done{background:var(--green)}
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;text-align:left}
+.preset-card{background:#1a1a2e;border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;transition:.15s}
+.preset-card:hover{border-color:var(--gold);background:rgba(255,215,0,.05)}
+.preset-card .pname{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px}
+.preset-card .pdesc{font-size:12px;color:var(--dim)}
+.onboard-divider{font-size:13px;color:var(--dim);margin:16px 0;display:flex;align-items:center;gap:12px}
+.onboard-divider::before,.onboard-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.onboard-input-row{display:flex;gap:8px;margin-bottom:12px}
+.onboard-input-row input{flex:1;background:#1a1a2e;border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:14px;outline:none}
+.onboard-input-row input:focus{border-color:var(--gold)}
+.onboard-input-row .btn{padding:10px 16px;font-size:14px}
+.skill-tags{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0}
+.skill-tag{background:#1a1a2e;border:1px solid var(--gold);border-radius:20px;padding:6px 14px;font-size:13px;color:var(--gold);cursor:default;display:flex;align-items:center;gap:6px}
+.skill-tag .remove{cursor:pointer;opacity:.6;font-size:16px;line-height:1}
+.skill-tag .remove:hover{opacity:1}
+.config-list{text-align:left;max-height:320px;overflow-y:auto;margin:12px 0}
+.config-item{background:#1a1a2e;border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:grid;grid-template-columns:40px 1fr auto;align-items:center;gap:12px;text-align:left}
+.config-item .c-icon{font-size:24px}
+.config-item .c-name{font-size:14px;font-weight:600;color:var(--text)}
+.config-item .c-detail{font-size:12px;color:var(--dim);margin-top:2px}
+.config-item .c-remove{background:none;border:1px solid var(--border);border-radius:6px;color:var(--dim);padding:4px 10px;cursor:pointer;font-size:12px;transition:.15s}
+.config-item .c-remove:hover{border-color:var(--red);color:var(--red)}
+.onboard-footer{display:flex;gap:12px;justify-content:center;margin-top:20px}
+.onboard-loading{color:var(--gold);font-size:14px;margin:16px 0}
+
 /* ── Guild tab ──────────────────────────────────────────── */
 .guild-header{display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap}
 .guild-badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
@@ -246,6 +281,52 @@ h1,h2,h3{font-weight:600}
     <button class="btn btn-primary" onclick="doRegister()">创建角色</button>
     <div class="auth-error" id="reg-error"></div>
     <div class="switch">已有账号？<a onclick="showLogin()">登录</a></div>
+  </div>
+</div>
+
+<!-- Onboarding overlay (shown after registration) -->
+<div id="onboard-overlay">
+  <div class="onboard-box">
+    <div class="onboard-steps">
+      <div class="onboard-step active" id="os-1"></div>
+      <div class="onboard-step" id="os-2"></div>
+      <div class="onboard-step" id="os-3"></div>
+    </div>
+
+    <!-- Step 1: Choose presets or custom -->
+    <div id="ob-step1">
+      <div class="auth-icon" style="font-size:48px;margin-bottom:12px">⚔️</div>
+      <h2>选择你的技能</h2>
+      <p>选择预设套餐，或自定义你想提升的技能</p>
+      <div class="preset-grid" id="preset-grid"></div>
+      <div class="onboard-divider">或者自定义</div>
+      <div class="onboard-input-row">
+        <input type="text" id="ob-skill-input" placeholder="输入你想提升的技能，如：背英语单词、跑步...">
+        <button class="btn btn-primary" onclick="obAddSkill()">添加</button>
+      </div>
+      <div class="skill-tags" id="ob-skill-tags"></div>
+    </div>
+
+    <!-- Step 2: Review & edit configs -->
+    <div id="ob-step2" style="display:none">
+      <h2>确认配置</h2>
+      <p>检查并修改你的技能参数</p>
+      <div id="ob-config-loading" class="onboard-loading">⏳ 正在生成技能配置...</div>
+      <div class="config-list" id="ob-config-list"></div>
+    </div>
+
+    <!-- Step 3: Complete -->
+    <div id="ob-step3" style="display:none">
+      <div class="auth-icon" style="font-size:48px;margin-bottom:12px">🎉</div>
+      <h2>配置完成！</h2>
+      <p id="ob-complete-msg"></p>
+      <button class="btn btn-primary" onclick="obFinish()" style="width:200px;margin:16px auto">开始冒险</button>
+    </div>
+
+    <div class="onboard-footer">
+      <button class="btn btn-secondary" id="ob-prev" onclick="obPrev()" style="display:none">上一步</button>
+      <button class="btn btn-primary" id="ob-next" onclick="obNext()">下一步</button>
+    </div>
   </div>
 </div>
 
@@ -1384,10 +1465,179 @@ function connectSSE(){
   };
 }
 
+/* ── Onboarding ───────────────────────────────────────────── */
+let obState = { step: 1, rawSkills: [], generatedConfigs: [], presetName: null };
+
+function showOnboard(show){
+  document.getElementById('onboard-overlay').classList.toggle('hidden', !show);
+}
+
+async function checkOnboarding(){
+  try {
+    const r = await apiGet('/onboard/status');
+    if(r.onboarded){
+      showOnboard(false);
+      loadDashboard();
+    } else {
+      showOnboard(true);
+      showOnboardStep(1);
+      await loadPresets();
+    }
+  } catch(e){
+    // Fallback: proceed to dashboard
+    showOnboard(false);
+    loadDashboard();
+  }
+}
+
+async function loadPresets(){
+  try {
+    const r = await apiGet('/onboard/presets');
+    const grid = document.getElementById('preset-grid');
+    grid.innerHTML = (r.presets||[]).map(p =>
+      `<div class="preset-card" onclick="obSelectPreset('${p.id}')">
+        <div class="pname">${p.name}</div>
+        <div class="pdesc">${p.description}</div>
+      </div>`
+    ).join('');
+  } catch(e){}
+}
+
+function obSelectPreset(id){
+  obState.presetName = id;
+  obState.rawSkills = [];
+  obNext();
+}
+
+function obAddSkill(){
+  const input = document.getElementById('ob-skill-input');
+  const val = input.value.trim();
+  if(!val || obState.rawSkills.includes(val)) return;
+  obState.rawSkills.push(val);
+  input.value = '';
+  renderObTags();
+}
+
+function obRemoveSkill(i){
+  obState.rawSkills.splice(i, 1);
+  renderObTags();
+}
+
+function renderObTags(){
+  const el = document.getElementById('ob-skill-tags');
+  el.innerHTML = obState.rawSkills.map((s,i) =>
+    `<div class="skill-tag">${s} <span class="remove" onclick="obRemoveSkill(${i})">×</span></div>`
+  ).join('');
+}
+
+function showOnboardStep(n){
+  obState.step = n;
+  document.getElementById('ob-step1').style.display = n===1 ? '' : 'none';
+  document.getElementById('ob-step2').style.display = n===2 ? '' : 'none';
+  document.getElementById('ob-step3').style.display = n===3 ? '' : 'none';
+  document.getElementById('ob-prev').style.display = n>1 ? '' : 'none';
+  document.getElementById('ob-next').style.display = n<3 ? '' : 'none';
+  // Update step indicators
+  for(let i=1;i<=3;i++){
+    const el = document.getElementById('os-'+i);
+    el.className = 'onboard-step';
+    if(i<n) el.classList.add('done');
+    if(i===n) el.classList.add('active');
+  }
+}
+
+async function obNext(){
+  if(obState.step === 1){
+    // Check: need at least 1 skill (preset or custom)
+    if(!obState.presetName && obState.rawSkills.length === 0){
+      alert('请选择一个预设套餐或至少添加一个自定义技能');
+      return;
+    }
+    showOnboardStep(2);
+    document.getElementById('ob-config-loading').style.display = '';
+    document.getElementById('ob-config-list').innerHTML = '';
+    // Generate configs
+    try {
+      let body;
+      if(obState.presetName){
+        body = { preset: obState.presetName };
+      } else {
+        body = { descriptions: obState.rawSkills };
+      }
+      const r = await apiPost('/onboard/configure', body);
+      obState.generatedConfigs = r.configs || [];
+      obState.presetName = r.preset_name || obState.presetName;
+    } catch(e){
+      obState.generatedConfigs = [];
+    }
+    renderObConfigs();
+    document.getElementById('ob-config-loading').style.display = 'none';
+  } else if(obState.step === 2){
+    // Save configs
+    const configs = getEditedConfigs();
+    try {
+      const r = await apiPost('/onboard/save', {
+        skills: configs,
+        template_used: obState.presetName,
+      });
+      if(r.success){
+        document.getElementById('ob-complete-msg').textContent =
+          `已配置 ${configs.length} 项技能，开始你的成长之旅吧！`;
+        showOnboardStep(3);
+      }
+    } catch(e){}
+  }
+}
+
+function obPrev(){
+  if(obState.step > 1) showOnboardStep(obState.step - 1);
+}
+
+function obFinish(){
+  showOnboard(false);
+  loadDashboard();
+}
+
+function renderObConfigs(){
+  const list = document.getElementById('ob-config-list');
+  list.innerHTML = obState.generatedConfigs.map((c, i) =>
+    `<div class="config-item" data-idx="${i}">
+      <div class="c-icon">${c.icon||'⭐'}</div>
+      <div>
+        <div class="c-name">${c.name||c.id}</div>
+        <div class="c-detail">${c.category||'其他'} · 每${c.unit||'次'}+${c.exp_per_unit||0} EXP · 每日上限${c.daily_cap||0} · 目标${c.daily_target||0}${c.unit||'次'}</div>
+      </div>
+      <button class="c-remove" onclick="obRemoveConfig(${i})">移除</button>
+    </div>`
+  ).join('');
+}
+
+function obRemoveConfig(i){
+  obState.generatedConfigs.splice(i, 1);
+  renderObConfigs();
+}
+
+function getEditedConfigs(){
+  return obState.generatedConfigs.map((c, i) => {
+    // For now, return as-is. Could add inline editing later.
+    return {
+      id: c.id,
+      name: c.name,
+      category: c.category,
+      unit: c.unit,
+      icon: c.icon,
+      exp_formula: c.exp_formula || 'linear',
+      exp_per_unit: c.exp_per_unit,
+      daily_cap: c.daily_cap,
+      daily_target: c.daily_target,
+    };
+  });
+}
+
 /* ── Init ───────────────────────────────────────────────── */
 if(isLoggedIn()){
   showAuthOverlay(false);
-  loadDashboard();
+  checkOnboarding();
   connectSSE();
 } else {
   showAuthOverlay(true);

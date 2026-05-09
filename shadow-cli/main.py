@@ -191,7 +191,7 @@ def cmd_record(player: dict, action_type: str, quantity: int = 1) -> str:
     """Record an action and add EXP."""
     streak = player.get("streak", 0)
     combo = player.get("combo", 0)
-    exp = get_exp_for_action(action_type, quantity, streak, combo)
+    exp = get_exp_for_action(action_type, quantity, streak, combo, player)
 
     if exp <= 0:
         return f"❌ 未知行为类型: {action_type}\n有效: commit, coding, vocabulary, exercise, reading"

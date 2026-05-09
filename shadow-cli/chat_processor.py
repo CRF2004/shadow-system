@@ -398,7 +398,7 @@ def execute_action(player: dict, action: str, params: dict) -> dict:
     elif action == "record":
         action_type = params.get("action_type", "")
         amount = params.get("amount", 0)
-        exp_info = eng["get_exp_for_action"](action_type, amount, player.get("streak", 0))
+        exp_info = eng["get_exp_for_action"](action_type, amount, player.get("streak", 0), player.get("combo", 0), player)
         if exp_info <= 0:
             result["response"] = f"{PERSONA_PREFIX}\n\n⚠️ 无法识别行为: {action_type}。试试自然语言描述。"
             return result

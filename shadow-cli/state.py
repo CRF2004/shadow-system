@@ -67,6 +67,11 @@ def create_default_player() -> dict:
         "lastDaily": None,
         "dailyProgress": {},
         "dailyLog": [],
+        "onboarded": False,
+        "skillConfig": {
+            "skills": [],
+            "templateUsed": None,
+        },
         "logs": [],
     }
 

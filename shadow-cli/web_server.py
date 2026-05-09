@@ -61,7 +61,7 @@ from analytics import (
 )
 from events import event_bus, broadcast, format_sse, format_heartbeat
 
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 
 
 class ShadowAPIHandler(SimpleHTTPRequestHandler):
@@ -180,6 +180,15 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             self._api_type_breakdown()
         elif path == "/api/analytics/daily-log":
             self._api_daily_log()
+        # ── Onboarding endpoints ──
+        elif path == "/api/onboard/status":
+            self._api_onboard_status()
+        elif path == "/api/onboard/presets":
+            self._api_onboard_presets()
+        elif path == "/api/onboard/templates":
+            self._api_onboard_templates()
+        elif path == "/api/onboard/categories":
+            self._api_onboard_categories()
         else:
             self.do_GET_static()
 
@@ -250,6 +259,11 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             self._api_guild_start_battle()
         elif path == "/api/guilds/deal-damage":
             self._api_guild_deal_damage()
+        # ── Onboarding endpoints ──
+        elif path == "/api/onboard/configure":
+            self._api_onboard_configure()
+        elif path == "/api/onboard/save":
+            self._api_onboard_save()
         else:
             self._send_json({"error": f"Unknown endpoint: {path}"}, 404)
 
@@ -311,7 +325,7 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         player = self._load_player()
         streak = player.get("streak", 0)
         combo = player.get("combo", 0)
-        exp = get_exp_for_action(action_type, quantity, streak, combo)
+        exp = get_exp_for_action(action_type, quantity, streak, combo, player)
 
         if exp <= 0:
             self._send_json({"success": False, "message": f"未知行为: {action_type}"}, 400)
@@ -1065,6 +1079,87 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         player = self._load_player()
         log = get_daily_log(player)
         self._send_json({"log": log})
+
+    # ── Onboarding API Handlers ────────────────────────────────────────────
+
+    def _api_onboard_status(self):
+        """Check onboarding status."""
+        player = self._load_player()
+        onboarded = player.get("onboarded", False)
+        skill_config = player.get("skillConfig", {})
+        self._send_json({
+            "onboarded": onboarded,
+            "skills": skill_config.get("skills", []),
+            "template_used": skill_config.get("templateUsed"),
+        })
+
+    def _api_onboard_presets(self):
+        """Get onboarding skill presets."""
+        from skill_config import get_presets
+        presets = get_presets()
+        self._send_json({"presets": presets})
+
+    def _api_onboard_templates(self):
+        """Get all skill templates."""
+        from skill_config import get_all_templates
+        templates = get_all_templates()
+        self._send_json({"templates": templates})
+
+    def _api_onboard_categories(self):
+        """Get skill categories."""
+        from skill_config import get_categories
+        categories = get_categories()
+        self._send_json({"categories": categories})
+
+    def _api_onboard_configure(self):
+        """Generate skill configs from descriptions (LLM or keyword fallback)."""
+        body = self._read_body()
+        descriptions = body.get("descriptions", [])
+        preset = body.get("preset")
+
+        if preset:
+            # Load configs from a preset
+            from skill_config import get_presets, generate_skill_configs
+            presets = get_presets()
+            p = next((x for x in presets if x["id"] == preset), None)
+            if p:
+                configs = generate_skill_configs(p["skills"])
+                self._send_json({"configs": configs, "preset_name": p["name"]})
+                return
+            self._send_json({"error": f"Unknown preset: {preset}"}, 404)
+            return
+
+        if descriptions:
+            from skill_config import generate_skill_configs
+            configs = generate_skill_configs(descriptions)
+            self._send_json({"configs": configs})
+            return
+
+        self._send_json({"error": "Provide 'descriptions' or 'preset'"}, 400)
+
+    def _api_onboard_save(self):
+        """Save skill configuration and mark player as onboarded."""
+        body = self._read_body()
+        skills = body.get("skills", [])
+        template_used = body.get("template_used")
+
+        if not skills:
+            self._send_json({"error": "No skills provided"}, 400)
+            return
+
+        player = self._load_player()
+        player["skillConfig"] = {
+            "skills": skills,
+            "templateUsed": template_used,
+        }
+        player["onboarded"] = True
+        self._save_player(player)
+
+        self._send_json({
+            "success": True,
+            "message": f"已配置 {len(skills)} 项技能",
+            "skills": skills,
+        })
 
 
 def cmd_daily_tasks(player: dict) -> list[dict]:

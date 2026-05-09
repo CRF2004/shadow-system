@@ -80,8 +80,25 @@ def get_combo_bonus(combo: int) -> float:
     return 1.0 + (combo * config.EXP_REWARDS["combo_pct"])
 
 
-def get_exp_for_action(action_type: str, quantity: int, streak: int = 0, combo: int = 0) -> int:
-    """Calculate EXP reward for a given action."""
+def get_exp_for_action(action_type: str, quantity: int, streak: int = 0, combo: int = 0, player: dict = None) -> int:
+    """Calculate EXP reward for a given action.
+
+    If player has skill-based config, uses skill's exp_per_unit.
+    Falls back to hardcoded EXP_REWARDS.
+    """
+    # Try skill-based EXP first
+    if player:
+        skill_config = player.get("skillConfig", {})
+        skills = skill_config.get("skills", [])
+        for skill in skills:
+            if skill["id"] == action_type:
+                from skill_config import get_exp_for_skill
+                base = get_exp_for_skill(skill, quantity)
+                streak_mult = get_streak_bonus(streak)
+                combo_mult = get_combo_bonus(combo)
+                return int(base * streak_mult * combo_mult)
+
+    # Fallback: hardcoded EXP_REWARDS
     base = config.EXP_REWARDS.get(action_type, 0)
 
     # Special handling for different action types
@@ -109,8 +126,25 @@ def get_exp_for_action(action_type: str, quantity: int, streak: int = 0, combo: 
 # ── Task System ─────────────────────────────────────────────────────────
 
 def generate_daily_tasks(player: dict) -> list[dict]:
-    """Generate today's daily tasks (4 fixed + 1 random emergency)."""
+    """Generate today's daily tasks from player skills or fallback to hardcoded.
+
+    If player has skillConfig with skills, generates tasks from those.
+    Otherwise falls back to hardcoded DAILY_TASKS + EMERGENCY_TASKS.
+    """
     today = date.today().isoformat()
+
+    # Check for skill-based configuration
+    skill_config = player.get("skillConfig", {})
+    skills = skill_config.get("skills", [])
+    if skills:
+        from skill_config import generate_skill_daily_tasks, generate_skill_emergency_task
+        tasks = generate_skill_daily_tasks(player)
+        emergency = generate_skill_emergency_task(player)
+        if emergency:
+            tasks.append(emergency)
+        return tasks
+
+    # Fallback: hardcoded tasks
     tasks = []
 
     # 4 fixed tasks

@@ -12,8 +12,10 @@ Phase 1  · MVP 可运行版本（CLI 完整功能 + 状态持久化）      →
 Phase 2  · 自动化追踪（Git Hook + 文件监控）               →  ~12h
 Phase 3  · 内容扩展（副本 + 商店 + 成就）                  →  ~20h
 Phase 4  · 外部集成（运动 API + 读书 API + 浏览器插件）    →  ~20h
-Phase 5  · Web 面板（RPG 风格 UI，零框架）                 →  ~8h
-Phase 6  · Chat UI（NextChat + 对话式交互）               →  ~12h  ✅ 已完成
+Phase 5  · Web 面板（RPG 风格 UI，零框架）                 →  ~8h    ✅ v0.5.0
+Phase 6  · Chat UI（NextChat + 对话式交互）               →  ~12h   ✅ v0.6.0
+Phase 7  · 数据洞察 + 留存分析                             →  ~10h   ✅ v0.7.0
+Phase 8  · 自定义技能 + 初始化引导                          →  ~8h    ✅ v0.8.0
 ```
 
 **决策门**：Phase 0 完成后，验证经验公式和等级体系的合理性。如果核心循环跑不通或用户留存验证失败，及时止损，不进入 Phase 1 以上的投入。
@@ -268,6 +270,75 @@ Phase 6  · Chat UI（NextChat + 对话式交互）               →  ~12h  ✅
 
 ---
 
+## Phase 7：数据洞察 + 留存分析（已完成）
+
+### 7.1 每日活动日志
+- [x] `log_daily_activity()` — 每次 record 时自动记录
+- [x] `dailyLog` 字段加入玩家状态
+- [x] 支持按日期、类型筛选
+
+### 7.2 报告系统
+- [x] 周报：`get_weekly_report()` — 每日趋势、缺勤天数、平均 EXP
+- [x] 月报：`get_monthly_report()` — 按周汇总、最佳/最差日期
+- [x] CLI 命令：`shadow report [weekly|monthly]`
+- [x] ASCII 柱状图渲染（Unicode 块字符）
+
+### 7.3 洞察建议
+- [x] `get_insights()` — 个性化推荐（6 条以内）
+- [x] 对比本周 vs 上周活跃度，识别闲置天数
+- [x] Web API + Web UI 展示
+
+### 7.4 连续打卡分析
+- [x] 最佳连续天数、当前连续天数、完成率的计算
+- [x] 活动类型分解（type breakdown）
+
+### 7.5 验收
+- [x] 23 个新测试，全部通过
+- [x] 总测试数：353
+- [x] 版本：v0.7.0
+
+---
+
+## Phase 8：自定义技能 + 初始化引导（已完成）
+
+**背景**：系统硬编码了 5 种活动类型，新玩家创建角色后直接进入面板，没有引导流程。目标：**让每个玩家定义自己的技能体系**，通过 LLM 自动填充参数。
+
+### 8.1 技能配置系统
+- [x] `skill_config.py` 模块（480 行，16 个函数）
+- [x] 16 个内置模板（单词、编程、跑步、吉他、绘画等）
+- [x] 7 个分类（学习/开发/健康/音乐/艺术/创作/生活）
+- [x] 用户自定义模板持久化到 `skill_templates.json`
+
+### 8.2 LLM 集成（可选）
+- [x] 环境变量 `SHADOW_LLM_BASE_URL` + `SHADOW_LLM_API_KEY`
+- [x] OpenAI 兼容 API 调用，自动生成技能配置 JSON
+- [x] 关键词匹配作为零依赖 fallback
+- [x] 三级生成策略：LLM → 关键词 → 通用兜底
+
+### 8.3 初始化引导流程
+- [x] 6 个预设套餐（程序员/学生/健身/音乐/全面/艺术家）
+- [x] Web UI 三步引导：选择预设/自定义 → 确认配置 → 完成
+- [x] `onboarded` 标志位，控制引导流程显示
+- [x] 玩家输入自然语言描述 → 自动生成技能参数
+
+### 8.4 引擎适配
+- [x] `engine.py`：`generate_daily_tasks()` 优先使用玩家技能
+- [x] `engine.py`：`get_exp_for_action()` 支持动态 skill EXP 计算
+- [x] 每日任务从玩家技能列表动态生成
+- [x] 紧急任务从玩家技能中随机选取
+
+### 8.5 API + Web UI
+- [x] 4 个 GET 端点：status / presets / templates / categories
+- [x] 2 个 POST 端点：configure / save
+- [x] Web UI 引导覆盖层（3 步流程 + 套餐网格 + 技能标签 + 配置列表）
+
+### 8.6 验收
+- [x] 30 个新测试，全部通过
+- [x] 总测试数：383
+- [x] 版本：v0.8.0
+
+---
+
 ## 风险登记
 
 | 风险 | 影响 | 对策 | 状态 |
@@ -281,4 +352,4 @@ Phase 6  · Chat UI（NextChat + 对话式交互）               →  ~12h  ✅
 ---
 
 *最后更新：2026-05-09*
-*下次评审：Phase 6 完成后 — 评估用户留存和是否引入 LLM 指令解析*
+*下次评审：Phase 8 完成后 — 评估引导流程体验和模板数据积累*
