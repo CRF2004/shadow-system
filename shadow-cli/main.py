@@ -108,6 +108,11 @@ from guild import (
     auto_progress_guild, get_active_season_id, get_season_guild_ranking,
     get_season_member_ranking, get_season_info, end_season,
 )
+from analytics import (
+    log_daily_activity as _log_activity,
+    get_weekly_report, get_monthly_report, get_insights,
+    format_weekly_report, get_streak_history, get_type_breakdown,
+)
 
 
 CMD_HELP = """\
@@ -253,6 +258,10 @@ def cmd_record(player: dict, action_type: str, quantity: int = 1) -> str:
         if all_instances_done and dungeon_result.get("instances"):
             rewards = claim_dungeon_reward(player, dungeon_result["instances"])
             dungeon_msgs.extend(rewards)
+
+    # Log daily activity for analytics
+    today = date.today().isoformat()
+    _log_activity(player, today, action_type, quantity, exp, 0)
 
     save_player(player)
 
@@ -1119,6 +1128,65 @@ def cmd_integrations(player: dict, action: str | None = None, target: str | None
     return "\n".join(lines)
 
 
+# ── Analytics Commands ──────────────────────────────────────────────────────
+
+def cmd_report(player: dict, period: str = "weekly", offset: int = 0) -> str:
+    """Show weekly or monthly analytics report."""
+    if period == "monthly":
+        r = get_monthly_report(player, offset)
+        sep = "═" * 42
+        lines = [sep]
+        lines.append(f"  📊 月报 - {r['month']}")
+        lines.append(sep)
+        lines.append(f"  活跃天数: {r['days_active']}/{r['days_in_month']}")
+        lines.append(f"  获得经验: {r['total_exp']:,} EXP")
+        lines.append(f"  获得金币: {r['total_gold']:,} G")
+        lines.append(f"  日均EXP: {r['avg_daily_exp']} EXP")
+        if r.get("best_day"):
+            lines.append(f"  最佳日: {r['best_day']}")
+        if r.get("worst_day"):
+            lines.append(f"  最低日: {r['worst_day']}")
+        lines.append("─" * 37)
+        if r["actions_by_type"]:
+            for t, qty in sorted(r["actions_by_type"].items(), key=lambda x: x[1], reverse=True):
+                lines.append(f"  {t}: {qty}")
+        lines.append("─" * 37)
+        lines.append(sep)
+        return "\n".join(lines)
+    else:
+        return format_weekly_report(player, offset)
+
+
+def cmd_insights(player: dict) -> str:
+    """Show personalized insights and recommendations."""
+    insights = get_insights(player)
+    streak = get_streak_history(player)
+    breakdown = get_type_breakdown(player)
+
+    sep = "═" * 42
+    lines = [sep]
+    lines.append("  🔮 数据洞察")
+    lines.append(sep)
+    lines.append(f"  当前连击: {streak['current_streak']} 天")
+    lines.append(f"  最佳连击: {streak['best_streak']} 天")
+    lines.append(f"  活跃天数: {streak['active_days']}/{streak['days_since_created']} ({streak['completion_rate']}%)")
+    lines.append("─" * 37)
+    if insights:
+        for i, insight in enumerate(insights[:8], 1):
+            lines.append(f"  {i}. {insight}")
+    else:
+        lines.append("  暂无洞察数据 — 先记录一些活动吧！")
+    lines.append("─" * 37)
+    if breakdown.get("types"):
+        lines.append("  最近30天活动分布:")
+        for t in breakdown["types"][:5]:
+            bar_len = min(t["total_exp"] // 10, 30)
+            bar = "█" * bar_len + "░" * (30 - bar_len)
+            lines.append(f"    {t['type']:>10} [{bar}] {t['total_exp']} EXP")
+    lines.append(sep)
+    return "\n".join(lines)
+
+
 # ── Guild CLI Commands ─────────────────────────────────────────────────────
 
 def cmd_guild_create(player: dict, name: str) -> str:
@@ -1557,6 +1625,14 @@ def main():
     season_parser.add_argument("action", nargs="?", help="操作: info/rankings/guilds/members/end")
     season_parser.add_argument("season_id", nargs="?", help="赛季ID (可选)")
 
+    # report
+    report_parser = subparsers.add_parser("report", help="查看数据分析报告")
+    report_parser.add_argument("period", nargs="?", default="weekly", help="周期: weekly/monthly")
+    report_parser.add_argument("--offset", type=int, default=0, help="回退周数/月数")
+
+    # insights
+    subparsers.add_parser("insights", help="查看数据洞察和建议")
+
     # guild create
     guild_create_parser = subparsers.add_parser("guild-create", help="创建公会")
     guild_create_parser.add_argument("name", help="公会名称")
@@ -1734,6 +1810,12 @@ def main():
 
     elif args.command == "season":
         print(cmd_season(player, args.action, getattr(args, "season_id", None)))
+
+    elif args.command == "report":
+        print(cmd_report(player, args.period, args.offset))
+
+    elif args.command == "insights":
+        print(cmd_insights(player))
 
     elif args.command == "guild-create":
         print(cmd_guild_create(player, args.name))

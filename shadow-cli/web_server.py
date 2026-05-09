@@ -54,9 +54,14 @@ from guild import (
     start_guild_battle, deal_boss_damage,
     add_guild_log, auto_progress_guild,
 )
+from analytics import (
+    log_daily_activity as _log_activity,
+    get_weekly_report, get_monthly_report, get_insights,
+    get_streak_history, get_type_breakdown, get_daily_log,
+)
 from events import event_bus, broadcast, format_sse, format_heartbeat
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 
 class ShadowAPIHandler(SimpleHTTPRequestHandler):
@@ -163,6 +168,18 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             self._api_member_rankings()
         elif path == "/api/users":
             self._api_users()
+        elif path == "/api/analytics/weekly":
+            self._api_weekly_report()
+        elif path == "/api/analytics/monthly":
+            self._api_monthly_report()
+        elif path == "/api/analytics/insights":
+            self._api_insights()
+        elif path == "/api/analytics/streak":
+            self._api_streak_history()
+        elif path == "/api/analytics/breakdown":
+            self._api_type_breakdown()
+        elif path == "/api/analytics/daily-log":
+            self._api_daily_log()
         else:
             self.do_GET_static()
 
@@ -315,6 +332,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
         # Auto-progress guild task/boss
         guild_result = auto_progress_guild(player, action_type, quantity)
+
+        # Log daily activity for analytics
+        _log_activity(player, date.today().isoformat(), action_type, quantity, exp, 0)
 
         self._save_player(player)
 
@@ -992,6 +1012,59 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
                 })
 
         self._send_json(result)
+
+    # ── Analytics API Handlers ─────────────────────────────────────────────
+
+    def _api_weekly_report(self):
+        """Get weekly analytics report."""
+        import urllib.parse
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+        offset = int(params.get("offset", [0])[0])
+        player = self._load_player()
+        report = get_weekly_report(player, offset)
+        # Convert daily_data tuples to list of dicts for JSON
+        report["daily_data"] = [{"date": d, "exp": e} for d, e in report.get("daily_data", [])]
+        report["missing_days"] = report.get("missing_days", [])
+        self._send_json(report)
+
+    def _api_monthly_report(self):
+        """Get monthly analytics report."""
+        import urllib.parse
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+        offset = int(params.get("offset", [0])[0])
+        player = self._load_player()
+        report = get_monthly_report(player, offset)
+        self._send_json(report)
+
+    def _api_insights(self):
+        """Get personalized insights."""
+        player = self._load_player()
+        insights = get_insights(player)
+        self._send_json({"insights": insights})
+
+    def _api_streak_history(self):
+        """Get streak history stats."""
+        player = self._load_player()
+        stats = get_streak_history(player)
+        self._send_json(stats)
+
+    def _api_type_breakdown(self):
+        """Get activity type breakdown."""
+        import urllib.parse
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+        days = int(params.get("days", [30])[0])
+        player = self._load_player()
+        breakdown = get_type_breakdown(player, days)
+        self._send_json(breakdown)
+
+    def _api_daily_log(self):
+        """Get daily activity log."""
+        player = self._load_player()
+        log = get_daily_log(player)
+        self._send_json({"log": log})
 
 
 def cmd_daily_tasks(player: dict) -> list[dict]:

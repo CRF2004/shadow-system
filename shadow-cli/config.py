@@ -14,7 +14,7 @@ LOGS_DIR = STATE_DIR / "logs"
 INTEGRATIONS_DIR = STATE_DIR / "integrations"
 
 # Core constants
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 BASE_EXP = 100
 EXP_MULTIPLIER = 1.5
 STAT_POINTS_PER_LEVEL = 3

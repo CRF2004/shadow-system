@@ -66,6 +66,7 @@ def create_default_player() -> dict:
         "lastActive": now,
         "lastDaily": None,
         "dailyProgress": {},
+        "dailyLog": [],
         "logs": [],
     }
 

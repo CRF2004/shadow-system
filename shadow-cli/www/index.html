@@ -276,6 +276,7 @@ h1,h2,h3{font-weight:600}
       <a data-tab="bosses"><span class="icon">💀</span> Boss</a>
       <a data-tab="integrations"><span class="icon">🔗</span> 集成</a>
       <a data-tab="guild"><span class="icon">🏰</span> 公会</a>
+      <a data-tab="analytics"><span class="icon">📊</span> 数据洞察</a>
     </nav>
   </div>
 
@@ -423,6 +424,21 @@ h1,h2,h3{font-weight:600}
       <div id="guild-rankings" class="mt-16"></div>
     </div>
 
+    <!-- Analytics -->
+    <div class="tab-content" id="tab-analytics">
+      <div class="section-title"><span class="emoji">📊</span> 数据洞察</div>
+      <!-- Weekly report -->
+      <div class="card" id="analytics-weekly"></div>
+      <div class="grid-2 mt-16">
+        <!-- Insights -->
+        <div class="card" id="analytics-insights"></div>
+        <!-- Streak -->
+        <div class="card" id="analytics-streak"></div>
+      </div>
+      <!-- Type breakdown -->
+      <div class="card mt-16" id="analytics-breakdown"></div>
+    </div>
+
   </div>
 </div>
 
@@ -459,6 +475,7 @@ document.querySelectorAll('#nav a').forEach(a => {
     else if(tab==='bosses') loadBosses();
     else if(tab==='integrations') loadIntegrations();
     else if(tab==='guild') loadGuild();
+    else if(tab==='analytics') loadAnalytics();
   });
 });
 
@@ -1240,6 +1257,83 @@ async function loadGuildRankings(){
   }
   html += '</div>';
   el.innerHTML = html;
+}
+
+/* ── Analytics ────────────────────────────────────────────── */
+function barChart(pct){
+  const w = 30;
+  const filled = Math.round(pct / 100 * w);
+  const empty = w - filled;
+  return '<span style="color:var(--green)">' + '█'.repeat(filled) + '</span>' + '<span style="color:var(--border)">' + '░'.repeat(empty) + '</span>';
+}
+
+async function loadAnalytics(){
+  // Weekly report
+  const weekly = await apiGet('/analytics/weekly');
+  const dailyNames = {1:'周一',2:'周二',3:'周三',4:'周四',5:'周五',6:'周六',0:'周日'};
+  let chartHtml = '';
+  const maxExp = Math.max(1, ...weekly.daily_data.map(d => d.exp));
+  for(const d of weekly.daily_data){
+    const dDate = new Date(d.date + 'T00:00:00');
+    const dayName = dailyNames[dDate.getDay()] || '';
+    const pct = Math.round(d.exp / maxExp * 100);
+    chartHtml += `<div class="stat-row"><span class="stat-label">${dayName||d.date}</span><span class="stat-value">${d.exp} EXP</span><div class="bar-wrap stat-bar" style="height:12px;flex:1"><div class="bar-fill exp" style="width:${pct}%"></div></div></div>`;
+  }
+  const trendIcon = weekly.trend==='up'?'📈':weekly.trend==='down'?'📉':'➡️';
+  const trendLabel = weekly.trend==='up'?'上升':weekly.trend==='down'?'下降':'稳定';
+  document.getElementById('analytics-weekly').innerHTML = `
+    <h3>📊 本周周报</h3>
+    <div class="grid-3" style="margin-bottom:12px">
+      <div class="stat-big"><div class="value">${weekly.total_exp}</div><div class="label">总 EXP</div></div>
+      <div class="stat-big"><div class="value" style="color:var(--orange)">${weekly.total_gold}</div><div class="label">总金币</div></div>
+      <div class="stat-big"><div class="value" style="color:var(--cyan)">${weekly.days_active}/7</div><div class="label">活跃天数</div></div>
+    </div>
+    <div style="font-size:13px;margin-bottom:8px">趋势: ${trendIcon} ${trendLabel} | 日均: ${weekly.avg_daily_exp} EXP</div>
+    ${chartHtml}
+  `;
+
+  // Insights
+  const insights = await apiGet('/analytics/insights');
+  let insHtml = '<h3>🔮 数据洞察</h3>';
+  if(insights.insights && insights.insights.length){
+    for(let i = 0; i < Math.min(insights.insights.length, 6); i++){
+      insHtml += `<div class="task-item" style="margin-bottom:4px"><div class="info"><div class="name">${i+1}. ${insights.insights[i]}</div></div></div>`;
+    }
+  } else {
+    insHtml += '<div class="text-dim">暂无洞察数据 — 先记录一些活动吧！</div>';
+  }
+  document.getElementById('analytics-insights').innerHTML = insHtml;
+
+  // Streak
+  const streak = await apiGet('/analytics/streak');
+  document.getElementById('analytics-streak').innerHTML = `
+    <h3>⚡ 连击历史</h3>
+    <div class="grid-2" style="margin-bottom:12px">
+      <div class="stat-big"><div class="value">${streak.current_streak}</div><div class="label">当前连击(天)</div></div>
+      <div class="stat-big"><div class="value" style="color:var(--purple)">${streak.best_streak}</div><div class="label">最佳连击(天)</div></div>
+    </div>
+    <div class="stat-row"><span class="stat-label">活跃天数</span><span class="stat-value">${streak.active_days}/${streak.days_since_created}</span></div>
+    <div class="bar-wrap" style="margin-top:8px"><div class="bar-fill exp" style="width:${streak.completion_rate}%"></div></div>
+    <div class="text-dim" style="font-size:12px;margin-top:4px">完成率: ${streak.completion_rate}%</div>
+  `;
+
+  // Breakdown
+  const breakdown = await apiGet('/analytics/breakdown');
+  let breakHtml = '<h3>📊 最近30天活动分布</h3>';
+  if(breakdown.types && breakdown.types.length){
+    const maxTotalExp = Math.max(1, ...breakdown.types.map(t => t.total_exp));
+    for(const t of breakdown.types){
+      const pct = Math.round(t.total_exp / maxTotalExp * 100);
+      breakHtml += `<div class="stat-row">
+        <span class="stat-label">${t.type}</span>
+        <span class="stat-value">${t.total_exp} EXP (${t.days_active}天, 日均${t.avg_per_day})</span>
+        <div class="bar-wrap stat-bar" style="height:12px;flex:1"><div class="bar-fill exp" style="width:${pct}%"></div></div>
+      </div>`;
+    }
+  } else {
+    breakHtml += '<div class="text-dim">暂无活动数据</div>';
+  }
+  document.getElementById('analytics-breakdown').innerHTML = breakHtml;
 }
 
 /* ── SSE Event Feed ─────────────────────────────────────── */
