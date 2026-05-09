@@ -326,6 +326,7 @@ h1,h2,h3{font-weight:600}
     <div class="onboard-footer">
       <button class="btn btn-secondary" id="ob-prev" onclick="obPrev()" style="display:none">上一步</button>
       <button class="btn btn-primary" id="ob-next" onclick="obNext()">下一步</button>
+      <button class="btn btn-sm text-dim" onclick="obSkip()" style="margin-left:auto">稍后再配置 ✕</button>
     </div>
   </div>
 </div>
@@ -633,15 +634,18 @@ function authHeaders(){
 }
 
 async function apiGet(path){
-  const r = await fetch(API + path, {headers: authHeaders()});
+  const r = await fetch(API + path, {headers: authHeaders(), signal: AbortSignal.timeout(10000)});
+  if(!r.ok) throw new Error('HTTP '+r.status);
   return r.json();
 }
 async function apiPost(path, body){
   const r = await fetch(API + path, {
     method:'POST',
     headers: authHeaders(),
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10000)
   });
+  if(!r.ok) throw new Error('HTTP '+r.status);
   return r.json();
 }
 /* Raw POST without auth (for login/register) */
@@ -1569,9 +1573,11 @@ async function obNext(){
       obState.presetName = r.preset_name || obState.presetName;
     } catch(e){
       obState.generatedConfigs = [];
+      document.getElementById('ob-config-loading').innerHTML =
+        '<span style="color:var(--red)">⚠️ 加载失败: ' + e.message + '</span><br><span style="font-size:12px;color:var(--dim)">请返回重试，或选择已添加的技能标签</span>';
     }
     renderObConfigs();
-    document.getElementById('ob-config-loading').style.display = 'none';
+    document.getElementById('ob-config-loading').style.display = obState.generatedConfigs.length > 0 ? 'none' : '';
   } else if(obState.step === 2){
     // Save configs
     const configs = getEditedConfigs();
@@ -1594,6 +1600,13 @@ function obPrev(){
 }
 
 function obFinish(){
+  showOnboard(false);
+  loadDashboard();
+}
+
+function obSkip(){
+  // Mark as onboarded with no skills (user can configure later)
+  try { apiPost('/onboard/save', { skills: [], template_used: 'skipped' }); } catch(e){}
   showOnboard(false);
   loadDashboard();
 }
