@@ -659,9 +659,63 @@ async function apiPostRaw(path, body){
   return r.json();
 }
 
+/* ── Dynamic Record/Guild Select Population ────────────────── */
+function skillOptionsHtml(s){
+  // Generate <option> HTML from skillConfig (used inline in template strings)
+  const skills = (s && s.skillConfig && s.skillConfig.skills) || [];
+  if(skills.length > 0){
+    return skills.map(sk =>
+      `<option value="${sk.id}">${sk.icon||'⭐'} ${sk.name}</option>`
+    ).join('');
+  }
+  // Fallback to hardcoded defaults
+  return '<option value="commit">Commit 代码提交</option>'+
+    '<option value="coding">Coding 编码</option>'+
+    '<option value="vocabulary">Vocabulary 背单词</option>'+
+    '<option value="exercise">Exercise 运动</option>'+
+    '<option value="reading">Reading 阅读</option>';
+}
+
+function populateRecordTypeSelect(s){
+  const sel = document.getElementById('rec-type');
+  if(!sel) return;
+  const skills = (s.skillConfig && s.skillConfig.skills) || [];
+  if(skills.length > 0){
+    sel.innerHTML = skills.map(sk =>
+      `<option value="${sk.id}">${sk.icon||'⭐'} ${sk.name}</option>`
+    ).join('');
+  } else {
+    // Fallback to hardcoded defaults
+    sel.innerHTML =
+      '<option value="commit">Commit 代码提交</option>'+
+      '<option value="coding">Coding 编码</option>'+
+      '<option value="vocabulary">Vocabulary 背单词</option>'+
+      '<option value="exercise">Exercise 运动</option>'+
+      '<option value="reading">Reading 阅读</option>';
+  }
+}
+
+function populateGuildActionSelects(s){
+  const skills = (s.skillConfig && s.skillConfig.skills) || [];
+  const options = skills.length > 0
+    ? skills.map(sk => `<option value="${sk.id}">${sk.icon||'⭐'} ${sk.name}</option>`).join('')
+    : '<option value="commit">Commit</option><option value="coding">编码</option>'+
+      '<option value="reading">阅读</option><option value="exercise">运动</option>'+
+      '<option value="vocabulary">背单词</option>';
+  // Update both guild action selects if they exist (they may not if guild section not rendered yet)
+  const contribSel = document.getElementById('guild-contribute-type');
+  const attackSel = document.getElementById('guild-attack-type');
+  if(contribSel) contribSel.innerHTML = options;
+  if(attackSel) attackSel.innerHTML = options;
+}
+
 /* ── Dashboard ──────────────────────────────────────────── */
 async function loadDashboard(){
   const s = await apiGet('/status');
+  // Populate record type select from player's skill config
+  populateRecordTypeSelect(s);
+  // Populate guild action selects from player's skill config
+  populateGuildActionSelects(s);
   document.getElementById('header-ver').textContent = 'v' + s.version;
   document.getElementById('header-gold').textContent = s.gold;
   document.getElementById('header-gems').textContent = s.gems;
@@ -1155,12 +1209,10 @@ async function loadGuildDetail(my){
       <div class="guild-task-bar"><div class="guild-task-fill" style="width:${pct}%">${t.current}/${t.target}</div></div>
       <div class="input-row" style="margin-top:8px">
         <label>贡献</label>
-        <select id="guild-action-type">
-          <option value="commit">Commit</option><option value="coding">编码</option>
-          <option value="reading">阅读</option><option value="exercise">运动</option>
-          <option value="vocabulary">背单词</option>
+        <select id="guild-contribute-type">
+          ${skillOptionsHtml(s)}
         </select>
-        <input type="number" id="guild-action-qty" value="1" min="1" style="width:80px">
+        <input type="number" id="guild-contribute-qty" value="1" min="1" style="width:80px">
         <button class="btn btn-primary" onclick="doGuildContribute()">贡献</button>
       </div>
     </div>`;
@@ -1181,12 +1233,10 @@ async function loadGuildDetail(my){
       <div class="guild-boss-hp"><div class="guild-boss-fill" style="width:${pct}%">${b.currentHp}/${b.maxHp}</div></div>
       <div class="input-row" style="margin-top:8px">
         <label>攻击</label>
-        <select id="guild-action-type">
-          <option value="commit">Commit</option><option value="coding">编码</option>
-          <option value="exercise">运动</option><option value="reading">阅读</option>
-          <option value="vocabulary">背单词</option>
+        <select id="guild-attack-type">
+          ${skillOptionsHtml(s)}
         </select>
-        <input type="number" id="guild-action-qty" value="1" min="1" style="width:80px">
+        <input type="number" id="guild-attack-qty" value="1" min="1" style="width:80px">
         <button class="btn btn-primary" style="border-color:var(--red);color:var(--red)" onclick="doGuildDealDamage()">攻击</button>
       </div>
     </div>`;
@@ -1270,8 +1320,8 @@ async function doStartGuildTask(){
 async function doGuildContribute(){
   const my = await apiPost('/guilds/my', {});
   if(!my.success) return;
-  const type = document.getElementById('guild-action-type').value;
-  const qty = parseInt(document.getElementById('guild-action-qty').value)||1;
+  const type = document.getElementById('guild-contribute-type').value;
+  const qty = parseInt(document.getElementById('guild-contribute-qty').value)||1;
   const r = await apiPost('/guilds/contribute', {guildId: my.id, actionType: type, quantity: qty});
   toast(r.message || `贡献: ${r.progress}/${r.target}`, r.completed ? 'levelup' : 'success');
   if(r.rewards){
@@ -1293,8 +1343,8 @@ async function doStartGuildBattle(){
 async function doGuildDealDamage(){
   const my = await apiPost('/guilds/my', {});
   if(!my.success) return;
-  const type = document.getElementById('guild-action-type').value;
-  const qty = parseInt(document.getElementById('guild-action-qty').value)||1;
+  const type = document.getElementById('guild-attack-type').value;
+  const qty = parseInt(document.getElementById('guild-attack-qty').value)||1;
   const r = await apiPost('/guilds/deal-damage', {guildId: my.id, actionType: type, quantity: qty});
   toast(r.message || `造成 ${r.damage} 伤害 (HP: ${r.bossHp}/${r.bossMaxHp})`, r.defeated ? 'levelup' : 'success');
   if(r.rewards){

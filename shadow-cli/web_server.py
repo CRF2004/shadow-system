@@ -323,6 +323,7 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             "bossesDefeated": len(player.get("bosses_defeated", [])),
             "inventoryCount": len(player.get("inventory", [])),
             "titleSuffixes": player.get("titleSuffixes", []),
+            "skillConfig": player.get("skillConfig", {"skills": []}),
         })
 
     def _api_tasks(self):
