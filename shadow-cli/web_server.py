@@ -14,6 +14,9 @@ import argparse
 import json
 import os
 import sys
+import uuid
+import time
+import threading
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from datetime import date, datetime
 from pathlib import Path
@@ -24,6 +27,11 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 import config
 from state import load_player, save_player
+from auth import (
+    create_user, authenticate, get_current_user, get_player,
+    save_player_with_token, list_users, _load_fallback_player,
+    _save_fallback_player, refresh_token, TOKEN_EXPIRY_HOURS,
+)
 from engine import (
     add_exp, calculate_power, get_title, allocate_stat, get_exp_for_action,
     apply_task_progress, claim_daily_reward, summon_soldier, summon_legion,
@@ -38,6 +46,15 @@ from integrations import (
     record_reading_manual, get_reading_summary,
     import_browser_data, record_browser_manual, get_browser_summary,
 )
+from guild import (
+    create_guild, disband_guild, join_guild, leave_guild,
+    list_guilds, get_guild, get_user_guild, get_guild_rankings,
+    get_member_rankings, transfer_leadership, kick_member, promote_member,
+    start_guild_task, contribute_to_guild_task,
+    start_guild_battle, deal_boss_damage,
+    add_guild_log,
+)
+from events import event_bus, broadcast, format_sse, format_heartbeat
 
 VERSION = "0.5.0"
 
@@ -73,10 +90,35 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             return {}
 
     def _load_player(self) -> dict:
-        return load_player()
+        token = self._extract_token()
+        if token:
+            player = get_player(token)
+            if player:
+                return player
+        return _load_fallback_player()
 
-    def _save_player(self, player: dict):
-        save_player(player)
+    def _save_player(self, player: dict) -> None:
+        token = self._extract_token()
+        if token:
+            save_player_with_token(token, player)
+        else:
+            _save_fallback_player(player)
+
+    def _extract_token(self) -> str | None:
+        """Extract JWT token from Authorization header."""
+        auth = self.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            return auth[7:]
+        return None
+
+    def _get_username(self) -> str | None:
+        """Get username from token, or None for fallback mode."""
+        token = self._extract_token()
+        if token:
+            user = get_current_user(token)
+            if user:
+                return user["id"]
+        return None
 
     # ── Routing ───────────────────────────────────────────────────────────
 
@@ -109,6 +151,18 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             self._api_browser_summary()
         elif path == "/api/refresh":
             self._api_refresh()
+        elif path == "/api/auth/token":
+            self._api_refresh_token()
+        elif path == "/api/events":
+            self._api_events()
+        elif path == "/api/guilds":
+            self._api_guilds()
+        elif path == "/api/guilds/rankings":
+            self._api_guild_rankings()
+        elif path == "/api/members/rankings":
+            self._api_member_rankings()
+        elif path == "/api/users":
+            self._api_users()
         else:
             self.do_GET_static()
 
@@ -144,6 +198,41 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             self._api_integration_enable()
         elif path == "/api/integrations/disable":
             self._api_integration_disable()
+        # ── OpenAI-compatible chat endpoint ──
+        elif path == "/v1/chat/completions":
+            self._api_chat()
+        # ── Auth endpoints ──
+        elif path == "/api/auth/register":
+            self._api_register()
+        elif path == "/api/auth/login":
+            self._api_login()
+        # ── Guild endpoints ──
+        elif path == "/api/guilds/create":
+            self._api_guild_create()
+        elif path == "/api/guilds/disband":
+            self._api_guild_disband()
+        elif path == "/api/guilds/join":
+            self._api_guild_join()
+        elif path == "/api/guilds/leave":
+            self._api_guild_leave()
+        elif path == "/api/guilds/info":
+            self._api_guild_info()
+        elif path == "/api/guilds/my":
+            self._api_guild_my()
+        elif path == "/api/guilds/transfer":
+            self._api_guild_transfer()
+        elif path == "/api/guilds/kick":
+            self._api_guild_kick()
+        elif path == "/api/guilds/promote":
+            self._api_guild_promote()
+        elif path == "/api/guilds/start-task":
+            self._api_guild_start_task()
+        elif path == "/api/guilds/contribute":
+            self._api_guild_contribute()
+        elif path == "/api/guilds/start-battle":
+            self._api_guild_start_battle()
+        elif path == "/api/guilds/deal-damage":
+            self._api_guild_deal_damage()
         else:
             self._send_json({"error": f"Unknown endpoint: {path}"}, 404)
 
@@ -225,6 +314,26 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         defeated = check_boss_defeat(player)
 
         self._save_player(player)
+
+        # Broadcast events
+        if levelup_msgs:
+            broadcast("level_up", {
+                "level": player["level"],
+                "title": get_title(player["level"]),
+                "messages": levelup_msgs,
+            })
+        if new_ach:
+            broadcast("achievement", {
+                "achievements": [{"id": a["id"], "name": a["name"]} for a in new_ach],
+            })
+        if task_result.get("all_done"):
+            broadcast("daily_complete", {"date": date.today().isoformat()})
+
+        broadcast("activity", {
+            "type": action_type,
+            "quantity": quantity,
+            "exp": exp,
+        })
 
         self._send_json({
             "success": True,
@@ -511,6 +620,48 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             "bosses": [b for b in get_active_bosses(player)],
         })
 
+    def _api_events(self):
+        """SSE endpoint for real-time events."""
+        # Extract subscription types from query
+        types_param = self._get_query_param("types", "")
+        event_types = [t.strip() for t in types_param.split(",") if t.strip()] if types_param else None
+
+        client_id = f"sse-{uuid.uuid4().hex[:8]}"
+        queue = event_bus.subscribe(client_id, event_types)
+
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+
+            # Send initial events from history
+            since = self._get_query_param("since")
+            history = event_bus.get_history(event_types, since)
+            for evt in history:
+                self.wfile.write(format_sse(evt).encode("utf-8"))
+                self.wfile.flush()
+
+            # Stream new events
+            while True:
+                try:
+                    event = queue.get(timeout=HEARTBEAT_INTERVAL)
+                    self.wfile.write(format_sse(event).encode("utf-8"))
+                    self.wfile.flush()
+                except Exception:
+                    # Queue timeout → send heartbeat
+                    try:
+                        self.wfile.write(format_heartbeat().encode("utf-8"))
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError):
+                        break
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            event_bus.unsubscribe(client_id)
+
     def _get_query_param(self, key: str, default: str = "") -> str:
         """Extract query parameter from URL."""
         if "?" in self.path:
@@ -521,6 +672,308 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
                     if k == key:
                         return v
         return default
+
+    def _api_chat(self):
+        """OpenAI-compatible chat completion endpoint."""
+        from chat_processor import parse_message, execute_action, build_chat_response, stream_response
+
+        body = self._read_body()
+        messages = body.get("messages", [])
+        stream = body.get("stream", False)
+
+        # Extract the last user message
+        user_text = ""
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                user_text = msg.get("content", "")
+                break
+
+        if not user_text:
+            self._send_json({"error": "No user message found"}, 400)
+            return
+
+        # Parse & execute
+        player = self._load_player()
+        parsed = parse_message(user_text)
+        action_result = execute_action(player, parsed["action"], parsed["params"])
+        model = body.get("model", "shadow-cli-v1")
+
+        if stream:
+            # Streaming response
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+            for chunk in stream_response(action_result, model):
+                self.wfile.write(chunk.encode("utf-8"))
+                self.wfile.flush()
+        else:
+            response = build_chat_response(action_result, model)
+            self._send_json(response)
+
+    # ── Auth API Handlers ──────────────────────────────────────────────────
+
+    def _api_register(self):
+        """Register a new user."""
+        body = self._read_body()
+        username = body.get("username", "")
+        password = body.get("password", "")
+        display_name = body.get("displayName", username)
+
+        try:
+            create_user(username, password, display_name)
+        except ValueError as e:
+            self._send_json({"success": False, "message": str(e)}, 400)
+            return
+
+        # Auto-login after registration
+        token = authenticate(username, password)
+        self._send_json({
+            "success": True,
+            "token": token,
+            "message": f"注册成功，欢迎 {display_name}！",
+        })
+
+    def _api_login(self):
+        """Authenticate and get token."""
+        body = self._read_body()
+        username = body.get("username", "")
+        password = body.get("password", "")
+
+        token = authenticate(username, password)
+        if token is None:
+            self._send_json({"success": False, "message": "用户名或密码错误"}, 401)
+            return
+
+        self._send_json({"success": True, "token": token})
+
+    def _api_refresh_token(self):
+        """Refresh/extend authentication token."""
+        token = self._extract_token()
+        if not token:
+            self._send_json({"success": False, "message": "未提供认证令牌"}, 401)
+            return
+
+        new_token = refresh_token(token)
+        if new_token is None:
+            self._send_json({"success": False, "message": "令牌已过期，请重新登录"}, 401)
+            return
+
+        self._send_json({"success": True, "token": new_token})
+
+    def _api_users(self):
+        """List all registered users."""
+        users = list_users()
+        self._send_json({"users": users})
+
+    # ── Guild API Handlers ────────────────────────────────────────────────
+
+    def _api_guild_create(self):
+        """Create a guild."""
+        body = self._read_body()
+        guild_name = body.get("name", "")
+        username = self._get_username() or "fallback"
+        player = self._load_player()
+
+        # Check if already in a guild
+        existing = get_user_guild(username or "fallback")
+        if existing:
+            self._send_json({"success": False, "message": f"你已在公会 [{existing['name']}] 中"}, 400)
+            return
+
+        result = create_guild(player, guild_name, username or "fallback")
+        if result["success"]:
+            self._save_player(player)
+        self._send_json(result)
+
+    def _api_guild_disband(self):
+        """Disband a guild (leader only)."""
+        body = self._read_body()
+        guild_id = body.get("guildId", body.get("guild_id", ""))
+        username = self._get_username() or "fallback"
+        result = disband_guild(guild_id, username)
+        self._send_json(result)
+
+    def _api_guild_join(self):
+        """Join a guild."""
+        body = self._read_body()
+        guild_id = body.get("guildId", body.get("guild_id", ""))
+        username = self._get_username() or "fallback"
+        player = self._load_player()
+        result = join_guild(guild_id, username, player)
+        self._send_json(result)
+
+    def _api_guild_leave(self):
+        """Leave a guild."""
+        body = self._read_body()
+        guild_id = body.get("guildId", body.get("guild_id", ""))
+        username = self._get_username() or "fallback"
+        result = leave_guild(guild_id, username)
+        self._send_json(result)
+
+    def _api_guild_info(self):
+        """Get guild details."""
+        body = self._read_body()
+        guild_id = body.get("guildId", body.get("guild_id", ""))
+        guild = get_guild(guild_id)
+        if not guild:
+            self._send_json({"success": False, "message": "公会不存在"}, 404)
+            return
+
+        self._send_json({
+            "id": guild["id"],
+            "name": guild["name"],
+            "leader": guild["leader"],
+            "contribution": guild["contribution"],
+            "rank": guild["rank"],
+            "members": guild["members"],
+            "memberCount": len(guild["members"]),
+            "activeTask": guild.get("activeTask"),
+            "activeBoss": guild.get("activeBoss"),
+            "battleCount": len(guild.get("battleHistory", [])),
+            "taskCount": len(guild.get("taskHistory", [])),
+            "logs": guild.get("logs", [])[-20:],
+        })
+
+    def _api_guild_my(self):
+        """Get current user's guild info."""
+        username = self._get_username() or "fallback"
+        guild = get_user_guild(username)
+        if not guild:
+            self._send_json({"success": False, "message": "未加入任何公会"})
+            return
+
+        self._send_json({
+            "success": True,
+            "id": guild["id"],
+            "name": guild["name"],
+            "leader": guild["leader"],
+            "contribution": guild["contribution"],
+            "rank": guild["rank"],
+            "members": guild["members"],
+            "memberCount": len(guild["members"]),
+            "activeTask": guild.get("activeTask"),
+            "activeBoss": guild.get("activeBoss"),
+        })
+
+    def _api_guilds(self):
+        """List all guilds."""
+        guilds = list_guilds()
+        self._send_json({"guilds": guilds})
+
+    def _api_guild_rankings(self):
+        """Get guild rankings."""
+        rankings = get_guild_rankings()
+        self._send_json({"rankings": rankings})
+
+    def _api_member_rankings(self):
+        """Get member rankings for a guild."""
+        body = self._read_body()
+        guild_id = body.get("guildId", body.get("guild_id", ""))
+        rankings = get_member_rankings(guild_id)
+        self._send_json({"rankings": rankings})
+
+    def _api_guild_transfer(self):
+        """Transfer guild leadership."""
+        body = self._read_body()
+        guild_id = body.get("guildId", body.get("guild_id", ""))
+        new_leader = body.get("newLeader", body.get("new_leader", ""))
+        username = self._get_username() or "fallback"
+        result = transfer_leadership(guild_id, username, new_leader)
+        self._send_json(result)
+
+    def _api_guild_kick(self):
+        """Kick a member."""
+        body = self._read_body()
+        guild_id = body.get("guildId", body.get("guild_id", ""))
+        target = body.get("target", "")
+        username = self._get_username() or "fallback"
+        result = kick_member(guild_id, username, target)
+        self._send_json(result)
+
+    def _api_guild_promote(self):
+        """Promote a member to officer."""
+        body = self._read_body()
+        guild_id = body.get("guildId", body.get("guild_id", ""))
+        target = body.get("target", "")
+        username = self._get_username() or "fallback"
+        result = promote_member(guild_id, username, target)
+        self._send_json(result)
+
+    def _api_guild_start_task(self):
+        """Start a guild task."""
+        body = self._read_body()
+        guild_id = body.get("guildId", body.get("guild_id", ""))
+        username = self._get_username() or "fallback"
+        result = start_guild_task(guild_id, username)
+        self._send_json(result)
+
+    def _api_guild_contribute(self):
+        """Contribute to guild task."""
+        body = self._read_body()
+        guild_id = body.get("guildId", body.get("guild_id", ""))
+        action_type = body.get("actionType", body.get("action_type", ""))
+        quantity = int(body.get("quantity", 1))
+        username = self._get_username() or "fallback"
+        result = contribute_to_guild_task(guild_id, username, action_type, quantity)
+
+        if result.get("success"):
+            broadcast("guild_task_progress", {
+                "guildId": guild_id,
+                "progress": result.get("progress", 0),
+                "target": result.get("target", 0),
+                "completed": result.get("completed", False),
+                "username": username,
+            })
+            if result.get("completed"):
+                broadcast("guild_task_complete", {
+                    "guildId": guild_id,
+                    "rewards": result.get("rewards", {}),
+                })
+
+        self._send_json(result)
+
+    def _api_guild_start_battle(self):
+        """Start a guild boss battle."""
+        body = self._read_body()
+        guild_id = body.get("guildId", body.get("guild_id", ""))
+        username = self._get_username() or "fallback"
+        result = start_guild_battle(guild_id, username)
+
+        if result.get("success"):
+            broadcast("guild_battle_start", {
+                "guildId": guild_id,
+                "boss": result.get("boss", {}),
+            })
+
+        self._send_json(result)
+
+    def _api_guild_deal_damage(self):
+        """Deal damage to guild boss."""
+        body = self._read_body()
+        guild_id = body.get("guildId", body.get("guild_id", ""))
+        action_type = body.get("actionType", body.get("action_type", ""))
+        quantity = int(body.get("quantity", 1))
+        username = self._get_username() or "fallback"
+        result = deal_boss_damage(guild_id, username, action_type, quantity)
+
+        if result.get("success"):
+            broadcast("guild_battle_damage", {
+                "guildId": guild_id,
+                "damage": result.get("damage", 0),
+                "bossHp": result.get("bossHp", 0),
+                "bossMaxHp": result.get("bossMaxHp", 0),
+                "defeated": result.get("defeated", False),
+                "username": username,
+            })
+            if result.get("defeated"):
+                broadcast("guild_battle_victory", {
+                    "guildId": guild_id,
+                    "rewards": result.get("rewards", {}),
+                })
+
+        self._send_json(result)
 
 
 def cmd_daily_tasks(player: dict) -> list[dict]:

@@ -8,6 +8,7 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -430,8 +431,9 @@ class TestIntegrationWorkflow(unittest.TestCase):
 
     def test_health_import_workflow(self):
         """Import health → verify EXP → verify data stored → summary."""
+        today = datetime.now().strftime("%Y-%m-%d")
         data = {"data": [
-            {"date": "2026-05-01", "steps": 10000, "exerciseMinutes": 30, "sleepHours": 8},
+            {"date": today, "steps": 10000, "exerciseMinutes": 30, "sleepHours": 8},
         ]}
         path = Path(self.temp_dir) / "health.json"
         with open(path, "w") as f:
@@ -441,7 +443,7 @@ class TestIntegrationWorkflow(unittest.TestCase):
         result = import_health_json(self.player, str(path))
         self.assertTrue(result["success"])
         self.assertGreater(self.player.get("totalExp", 0), exp_before)
-        self.assertIn("2026-05-01", self.player["healthData"])
+        self.assertIn(today, self.player["healthData"])
         summary = get_health_summary(self.player, days=7)
         self.assertGreater(summary["total_exp"], 0)
 
