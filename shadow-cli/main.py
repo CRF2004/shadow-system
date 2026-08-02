@@ -53,6 +53,10 @@ from git_tracker import (
     uninstall_git_hook,
     get_git_root,
     get_git_status_info,
+    github_add_repo,
+    github_remove_repo,
+    github_list_repos,
+    github_scan_and_grant,
 )
 from file_tracker import (
     scan_files_and_grant,
@@ -108,7 +112,7 @@ from guild import (
 )
 from analytics import (
     log_daily_activity as _log_activity,
-    get_weekly_report, get_monthly_report, get_insights,
+    get_weekly_report, get_monthly_report, get_insights, get_smart_reminders,
     format_weekly_report, get_streak_history, get_type_breakdown,
 )
 
@@ -130,6 +134,9 @@ Shadow CLI v{version} - 暗影君主系统
   python main.py monitor               虚空监控: 实时面板
   python main.py deploy [分钟]          领域展开: 全局诊断
   python main.py archive "[主题]"      记忆固化: 保存经验
+  python main.py report [周期] [--offset N] 数据分析报告
+  python main.py insights              数据洞察
+  python main.py reminders             智能提醒
   python main.py reset                 重置角色 (危险!)
 
 record 类型:
@@ -775,6 +782,51 @@ def cmd_git_status(player: dict) -> str:
     return get_git_status_info()
 
 
+def cmd_github(player: dict, action: str, repo: str = "") -> str:
+    """Manage GitHub remote repo sync.
+
+    Actions:
+        add <owner/repo>   - 添加远程仓库到同步列表
+        remove <owner/repo> - 从同步列表移除
+        list               - 列出已配置的仓库
+        scan [owner/repo]  - 扫描远程 commit 并获取 EXP
+    """
+    if action == "add":
+        if not repo:
+            return "❌ 用法: shadow github add <owner/repo>"
+        result = github_add_repo(repo)
+        return result["message"]
+
+    elif action == "remove":
+        if not repo:
+            return "❌ 用法: shadow github remove <owner/repo>"
+        result = github_remove_repo(repo)
+        return result["message"]
+
+    elif action == "list":
+        result = github_list_repos()
+        if not result["repos"]:
+            return "📭 未配置 GitHub 仓库\n使用 'shadow github add <owner/repo>' 添加"
+        lines = ["📦 已配置的 GitHub 仓库:"]
+        for r in result["repos"]:
+            token_str = " 🔑" if r.get("token") else ""
+            lines.append(f"  • {r['name']}{token_str}")
+        lines.append(f"\n共 {result['total']} 个仓库")
+        return "\n".join(lines)
+
+    elif action == "scan":
+        result = github_scan_and_grant(player, repo)
+        msg = result["message"]
+        if result.get("levelup_msgs"):
+            msg += "\n" + "\n".join(result["levelup_msgs"])
+        if result.get("achievement_msgs"):
+            msg += "\n" + "\n".join(result["achievement_msgs"])
+        return msg
+
+    else:
+        return f"❌ 未知动作: {action}\n可用: add, remove, list, scan"
+
+
 def cmd_file_status(player: dict) -> str:
     """Show file tracking status."""
     return get_file_status()
@@ -1185,6 +1237,17 @@ def cmd_insights(player: dict) -> str:
     return "\n".join(lines)
 
 
+def cmd_reminders(player: dict) -> str:
+    """Show smart reminders based on recent activity."""
+    reminders = get_smart_reminders(player)
+    sep = "═" * 42
+    lines = [sep, "  ⏰ 智能提醒", sep]
+    for i, reminder in enumerate(reminders, 1):
+        lines.append(f"  {i}. {reminder}")
+    lines.append(sep)
+    return "\n".join(lines)
+
+
 # ── Guild CLI Commands ─────────────────────────────────────────────────────
 
 def cmd_guild_create(player: dict, name: str) -> str:
@@ -1537,6 +1600,11 @@ def main():
     remove_git_parser = subparsers.add_parser("remove-git", help="移除 Git post-commit hook")
     remove_git_parser.add_argument("path", nargs="?", default=".", help="仓库路径")
 
+    # github
+    github_parser = subparsers.add_parser("github", help="GitHub 远程仓库同步")
+    github_parser.add_argument("action", choices=["add", "remove", "list", "scan"], help="操作")
+    github_parser.add_argument("repo", nargs="?", default="", help="仓库名 owner/repo")
+
     # git-status
     subparsers.add_parser("git-status", help="查看 Git 追踪状态")
 
@@ -1630,6 +1698,9 @@ def main():
 
     # insights
     subparsers.add_parser("insights", help="查看数据洞察和建议")
+
+    # reminders
+    subparsers.add_parser("reminders", help="查看智能提醒")
 
     # guild create
     guild_create_parser = subparsers.add_parser("guild-create", help="创建公会")
@@ -1749,6 +1820,9 @@ def main():
     elif args.command == "git-status":
         print(cmd_git_status(player))
 
+    elif args.command == "github":
+        print(cmd_github(player, args.action, args.repo))
+
     elif args.command == "scan-files":
         print(cmd_scan_files(player, args.path))
 
@@ -1814,6 +1888,9 @@ def main():
 
     elif args.command == "insights":
         print(cmd_insights(player))
+
+    elif args.command == "reminders":
+        print(cmd_reminders(player))
 
     elif args.command == "guild-create":
         print(cmd_guild_create(player, args.name))

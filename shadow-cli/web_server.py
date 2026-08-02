@@ -17,6 +17,7 @@ import sys
 import uuid
 import time
 import threading
+import urllib.parse
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from datetime import date, datetime
 from pathlib import Path
@@ -56,7 +57,7 @@ from guild import (
 )
 from analytics import (
     log_daily_activity as _log_activity,
-    get_weekly_report, get_monthly_report, get_insights,
+    get_weekly_report, get_monthly_report, get_insights, get_smart_reminders,
     get_streak_history, get_type_breakdown, get_daily_log,
 )
 from events import event_bus, broadcast, format_sse, format_heartbeat
@@ -110,10 +111,15 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             _save_fallback_player(player)
 
     def _extract_token(self) -> str | None:
-        """Extract JWT token from Authorization header."""
+        """Extract JWT token from Authorization header or ?token= query param."""
         auth = self.headers.get("Authorization", "")
         if auth.startswith("Bearer "):
             return auth[7:]
+        # Also support ?token=xxx for webhook/cron-style calls
+        query = urllib.parse.urlparse(self.path).query
+        params = urllib.parse.parse_qs(query)
+        if "token" in params and params["token"][0]:
+            return params["token"][0]
         return None
 
     def _get_username(self) -> str | None:
@@ -132,6 +138,8 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         path = self.path.split("?")[0].rstrip("/")
         if path == "/api/status":
             self._api_status()
+        elif path == "/api/skills":
+            self._api_skills()
         elif path == "/api/tasks":
             self._api_tasks()
         elif path == "/api/army":
@@ -176,10 +184,10 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             self._api_insights()
         elif path == "/api/analytics/streak":
             self._api_streak_history()
+        elif path == "/api/analytics/reminders":
+            self._api_reminders()
         elif path == "/api/analytics/breakdown":
             self._api_type_breakdown()
-        elif path == "/api/analytics/daily-log":
-            self._api_daily_log()
         # ── Onboarding endpoints ──
         elif path == "/api/onboard/status":
             self._api_onboard_status()
@@ -220,6 +228,8 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             self._api_scan_git()
         elif path == "/api/scan-files":
             self._api_scan_files()
+        elif path == "/api/activities":
+            self._api_activities()
         elif path == "/api/integrations/enable":
             self._api_integration_enable()
         elif path == "/api/integrations/disable":
@@ -268,24 +278,47 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": f"Unknown endpoint: {path}"}, 404)
 
     def do_GET_static(self):
-        """Serve static files with no-cache for HTML."""
-        path = self.path.rstrip("/")
-        if path == "" or path == "/":
+        """Serve static files with no-cache to ensure fresh content."""
+        # Strip query string for path matching (supports cache-busting ?v=xxx)
+        clean_path = self.path.split("?")[0].rstrip("/")
+        if clean_path == "" or clean_path == "/":
             self.path = "/index.html"
-        # Disable caching for HTML to ensure fresh load
-        if self.path.endswith(".html"):
-            self.send_response(200)
-            self.send_header("Content-type", "text/html; charset=utf-8")
-            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
-            self.send_header("Pragma", "no-cache")
-            self.end_headers()
-            try:
-                f = open(self.translate_path(self.path), "rb")
-                self.wfile.write(f.read())
-                f.close()
-            except OSError:
-                pass
-            return
+            clean_path = "/index.html"
+        # Temporarily use clean path for translate_path
+        orig_path = self.path
+        self.path = clean_path
+        try:
+            if clean_path.endswith(".html"):
+                self.send_response(200)
+                self.send_header("Content-type", "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+                self.send_header("Pragma", "no-cache")
+                self.end_headers()
+                try:
+                    f = open(self.translate_path(self.path), "rb")
+                    self.wfile.write(f.read())
+                    f.close()
+                except OSError:
+                    pass
+                return
+            if clean_path.endswith((".css", ".js")):
+                self.send_response(200)
+                if clean_path.endswith(".css"):
+                    self.send_header("Content-type", "text/css; charset=utf-8")
+                elif clean_path.endswith(".js"):
+                    self.send_header("Content-type", "application/javascript; charset=utf-8")
+                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+                self.send_header("Pragma", "no-cache")
+                self.end_headers()
+                try:
+                    f = open(self.translate_path(self.path), "rb")
+                    self.wfile.write(f.read())
+                    f.close()
+                except OSError:
+                    pass
+                return
+        finally:
+            self.path = orig_path
         return super().do_GET()
 
     # ── API Handlers ──────────────────────────────────────────────────────
@@ -326,25 +359,27 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             "skillConfig": player.get("skillConfig", {"skills": []}),
         })
 
+    def _api_skills(self):
+        """Get player's configured skills."""
+        player = self._load_player()
+        skill_config = player.get("skillConfig", {"skills": []})
+        skills = skill_config.get("skills", [])
+        self._send_json({"skills": skills})
+
     def _api_tasks(self):
         player = self._load_player()
         today_tasks = cmd_daily_tasks(player)
         self._save_player(player)
         self._send_json({"date": date.today().isoformat(), "tasks": today_tasks})
 
-    def _api_record(self):
-        body = self._read_body()
-        action_type = body.get("action", body.get("type", ""))
-        quantity = int(body.get("quantity", 1))
-
-        player = self._load_player()
+    def _process_activity(self, player: dict, action_type: str, quantity: int, source: str = "") -> dict:
+        """Apply a single activity to the player and emit notifications."""
         streak = player.get("streak", 0)
         combo = player.get("combo", 0)
         exp = get_exp_for_action(action_type, quantity, streak, combo, player)
 
         if exp <= 0:
-            self._send_json({"success": False, "message": f"未知行为: {action_type}"}, 400)
-            return
+            return {"success": False, "message": f"未知行为: {action_type}"}
 
         if player.get("doubleExpNext", 0) > 0:
             exp *= 2
@@ -394,9 +429,10 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             "type": action_type,
             "quantity": quantity,
             "exp": exp,
+            "source": source,
         })
 
-        self._send_json({
+        return {
             "success": True,
             "exp": exp,
             "levelups": levelup_msgs,
@@ -405,7 +441,98 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             "guildProgress": guild_result,
             "achievements": [{"id": a["id"], "name": a["name"]} for a in new_ach],
             "bossesDefeated": [{"id": b["id"], "name": b["name"]} for b in defeated],
-        })
+        }
+
+    def _api_record(self):
+        body = self._read_body()
+        action_type = body.get("action", body.get("type", body.get("action_type", "")))
+        quantity = int(body.get("quantity", body.get("amount", 1)))
+
+        player = self._load_player()
+        result = self._process_activity(player, action_type, quantity, source=body.get("source", "record"))
+        if not result.get("success"):
+            self._send_json({"success": False, "message": result.get("message", f"未知行为: {action_type}")}, 400)
+            return
+
+        self._send_json(result)
+
+    def _api_activities(self):
+        body = self._read_body()
+        player = self._load_player()
+
+        if isinstance(body, list):
+            items = body
+        elif isinstance(body, dict):
+            if isinstance(body.get("activities"), list):
+                items = body["activities"]
+            elif isinstance(body.get("activity"), dict):
+                items = [body["activity"]]
+            elif body:
+                items = [body]
+            else:
+                items = []
+        else:
+            items = []
+
+        if not items:
+            self._send_json({"success": False, "message": "缺少 activities 数据"}, 400)
+            return
+
+        results = []
+        errors = []
+        total_exp = 0
+        source_default = body.get("source", "api:activities") if isinstance(body, dict) else "api:activities"
+
+        for index, item in enumerate(items):
+            if not isinstance(item, dict):
+                errors.append({"index": index, "message": "activity 必须是对象"})
+                continue
+
+            action_type = item.get("action", item.get("type", item.get("action_type", "")))
+            quantity_raw = item.get("quantity", item.get("amount", 1))
+            try:
+                quantity = int(float(quantity_raw))
+            except (TypeError, ValueError):
+                errors.append({"index": index, "message": f"无效数量: {quantity_raw}"})
+                continue
+
+            if not action_type:
+                errors.append({"index": index, "message": "缺少 activity.type"})
+                continue
+            if quantity <= 0:
+                errors.append({"index": index, "message": f"数量必须大于 0: {quantity}"})
+                continue
+
+            result = self._process_activity(player, action_type, quantity, source=item.get("source", source_default))
+            if not result.get("success"):
+                errors.append({"index": index, "message": result.get("message", f"未知行为: {action_type}")})
+                continue
+
+            total_exp += result.get("exp", 0)
+            results.append({
+                "index": index,
+                "action_type": action_type,
+                "quantity": quantity,
+                "exp": result.get("exp", 0),
+                "levelups": result.get("levelups", []),
+                "achievements": result.get("achievements", []),
+                "source": item.get("source", source_default),
+            })
+
+        if not results:
+            self._send_json({"success": False, "message": "没有可处理的活动", "errors": errors}, 400)
+            return
+
+        response = {
+            "success": True,
+            "count": len(results),
+            "total_exp": total_exp,
+            "results": results,
+        }
+        if errors:
+            response["partial"] = True
+            response["errors"] = errors
+        self._send_json(response)
 
     def _api_claim_daily(self):
         player = self._load_player()
@@ -527,6 +654,7 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         result = record_health_manual(player, steps, exercise_min, sleep_hours)
         if result["success"]:
             self._save_player(player)
+            broadcast("activity", {"type": "health", "quantity": steps + exercise_min, "exp": result.get("exp", 0), "source": "health_record"})
         self._send_json(result)
 
     def _api_health_summary(self):
@@ -544,6 +672,7 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         result = record_reading_manual(player, minutes, pages, book)
         if result["success"]:
             self._save_player(player)
+            broadcast("activity", {"type": "reading", "quantity": minutes, "exp": result.get("exp", 0), "source": "reading_record"})
         self._send_json(result)
 
     def _api_reading_summary(self):
@@ -560,6 +689,7 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         result = record_browser_manual(player, site, minutes)
         if result["success"]:
             self._save_player(player)
+            broadcast("activity", {"type": "browser", "quantity": minutes, "exp": result.get("exp", 0), "source": "browser_record"})
         self._send_json(result)
 
     def _api_browser_summary(self):
@@ -590,6 +720,20 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         player = self._load_player()
         result = scan_commits_and_grant(player, git_root)
         self._save_player(player)
+        # Broadcast SSE event for real-time notification
+        if result.get("commits_found", 0) > 0:
+            broadcast("activity", {
+                "type": "commit",
+                "quantity": result["commits_found"],
+                "exp": result["exp_granted"],
+                "source": "git_scan",
+            })
+            if result.get("levelup_msgs"):
+                broadcast("level_up", {
+                    "level": player["level"],
+                    "title": get_title(player["level"]),
+                    "messages": result["levelup_msgs"],
+                })
         self._send_json(result)
 
     def _api_scan_files(self):
@@ -598,6 +742,14 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         player = self._load_player()
         result = scan_files_and_grant(player, path)
         self._save_player(player)
+        # Broadcast SSE event for real-time notification
+        if result.get("exp_granted", 0) > 0:
+            broadcast("activity", {
+                "type": "file_scan",
+                "quantity": result.get("files_scanned", 0),
+                "exp": result["exp_granted"],
+                "source": "file_scan",
+            })
         self._send_json(result)
 
     def _api_integration_enable(self):
@@ -754,10 +906,16 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "No user message found"}, 400)
             return
 
-        # Parse & execute
+        # Parse & execute (pass token for follow-up context)
+        token = self._extract_token() or ""
         player = self._load_player()
-        parsed = parse_message(user_text)
+        parsed = parse_message(user_text, token=token)
         action_result = execute_action(player, parsed["action"], parsed["params"])
+        # Save player if action modified state (record/summon/etc.)
+        if parsed["action"] in ("record", "summon", "legion", "allocate_stat",
+                                 "claim_daily", "enter_dungeon", "deal_damage",
+                                 "buy", "sell"):
+            self._save_player(player)
         model = body.get("model", "shadow-cli-v1")
 
         if stream:
@@ -1079,6 +1237,12 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         stats = get_streak_history(player)
         self._send_json(stats)
 
+    def _api_reminders(self):
+        """Get smart reminders."""
+        player = self._load_player()
+        reminders = get_smart_reminders(player)
+        self._send_json({"reminders": reminders})
+
     def _api_type_breakdown(self):
         """Get activity type breakdown."""
         import urllib.parse
@@ -1189,8 +1353,68 @@ def cmd_daily_tasks(player: dict) -> list[dict]:
     return list(daily.get("tasks", {}).values())
 
 
+def run_reminder_checker(interval: int = 1800):
+    """Background thread: periodically check player inactivity and push SSE reminders.
+
+    Runs every `interval` seconds (default 30 min). Checks all known players
+    (both token-authenticated and fallback single-user), calls
+    get_smart_reminders(), and broadcasts any actionable reminders.
+    """
+    while True:
+        time.sleep(interval)
+        try:
+            # Check fallback (single-user mode)
+            fallback = _load_fallback_player()
+            if fallback:
+                fb_reminders = get_smart_reminders(fallback)
+                fb_actionable = [
+                    r for r in fb_reminders
+                    if not r.startswith("保持当前节奏")
+                ]
+                if fb_actionable:
+                    broadcast("reminder", {
+                        "reminders": fb_actionable,
+                        "count": len(fb_actionable),
+                    })
+
+            # Check all token-authenticated users
+            from auth import list_users, _users_dir
+            for user in list_users():
+                try:
+                    user_path = _users_dir() / f"{user['id']}.json"
+                    if not user_path.exists():
+                        continue
+                    data = json.loads(user_path.read_text(encoding="utf-8"))
+                    player = data.get("player", {})
+                    if not player:
+                        continue
+                    reminders = get_smart_reminders(player)
+                    actionable = [
+                        r for r in reminders
+                        if not r.startswith("保持当前节奏")
+                    ]
+                    if actionable:
+                        broadcast("reminder", {
+                            "user": user["id"],
+                            "reminders": actionable,
+                            "count": len(actionable),
+                        })
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+
 def run_server(port: int = 8080):
     """Start the web server."""
+    # Start background reminder checker thread
+    reminder_thread = threading.Thread(
+        target=run_reminder_checker,
+        args=(1800,),
+        daemon=True,
+        name="reminder-checker",
+    )
+    reminder_thread.start()
     server = ThreadingHTTPServer(("0.0.0.0", port), ShadowAPIHandler)
     print(f"""
 ┌──────────────────────────────────────────────┐

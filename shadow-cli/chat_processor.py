@@ -114,20 +114,36 @@ SLASH_COMMANDS = {
 
 # Keyword patterns → (action_type, default_amount)
 NATURAL_PATTERNS = [
+    # Vocabulary (今天背了50个单词)
     (r"背了?\s*(\d+)\s*个?\s*单词",        ("vocabulary", 1)),
     (r"背了?\s*(\d+)\s*个?\s*词",          ("vocabulary", 1)),
     (r"学习了?\s*(\d+)\s*个?\s*单词",      ("vocabulary", 1)),
+    (r"(今天|昨天|最近|刚)?\s*背了?\s*(\d+)\s*词", ("vocabulary", 1)),
+    # Steps (今天走了8000步)
     (r"走了?\s*(\d+)\s*步",                 ("steps", 1)),
+    (r"(今天|昨天|最近)?\s*走了?\s*(\d+)\s*步", ("steps", 1)),
+    # Exercise / Running
     (r"运动了?\s*(\d+)\s*分钟",             ("exercise", 1)),
     (r"跑了?\s*(\d+)\s*分钟",               ("exercise", 1)),
+    (r"跑了?\s*(\d+\.?\d*)\s*公里",        ("exercise", 1)),
+    (r"跑了?\s*(\d+\.?\d*)\s*km",          ("exercise", 1)),
+    # Reading
     (r"读了?\s*(\d+)\s*页",                ("reading_pages", 1)),
     (r"读了?\s*(\d+)\s*分钟",              ("reading_minutes", 1)),
+    (r"(今天|昨天)?\s*读了?\s*(\d+)\s*页", ("reading_pages", 1)),
+    (r"(今天|昨天)?\s*读了?\s*(\d+)\s*分钟", ("reading_minutes", 1)),
+    # Coding
     (r"写了?\s*(\d+)\s*行?\s*代码",        ("coding_lines", 1)),
     (r"写了?\s*(\d+)\s*行?\s*代码?",       ("coding_lines", 1)),
+    (r"码了?\s*(\d+)\s*行?\s*代码",        ("coding_lines", 1)),
+    # Git commit
     (r"提交了?\s*(\d+)\s*次?\s*commit",    ("commit", 1)),
     (r"commit\s*(\d+)\s*次?",               ("commit", 1)),
+    # Sleep
     (r"睡了?\s*(\d+\.?\d*)\s*小时",        ("sleep_hours", 1)),
-    (r"睡了?\s*(\d+\.?\d*)\s*小时",       ("sleep_hours", 1)),
+    # Practice (generic skill): 练了30分钟吉他
+    (r"练了?\s*(\d+)\s*分钟",              ("practice", 1)),
+    (r"练习了?\s*(\d+)\s*分钟",            ("practice", 1)),
 ]
 
 # Fuzzy intent patterns
@@ -150,14 +166,35 @@ FUZZY_PATTERNS = {
     r"(加油|冲|干|行动|开始|出发)": "greeting",
 }
 
+# Fuzzy record intents — trigger follow-up "how many?" prompt
+# Maps keyword to (action_type, prompt, default_unit)
+FUZZY_RECORD_INTENTS = {
+    r"背单词|背词|vocabulary|单词":  ("vocabulary", "背了多少个单词？回复数字即可", "个"),
+    r"跑步|跑了|跑步了|跑步了":     ("exercise", "跑了多久？回复分钟数或公里数", "分钟"),
+    r"走路|走了|步数|steps":      ("steps",      "走了多少步？回复数字即可", "步"),
+    r"运动|健身|锻炼|瑜伽":        ("exercise",   "运动了多久？回复分钟数", "分钟"),
+    r"读书|阅读|看书|读了":        ("reading_minutes", ("读书还是看书？回复'读书X分钟'或'看书X页'"), ""),
+    r"代码|coding|写代码|码代码":  ("coding_lines", ("写了多少行代码？回复数字"), "行"),
+    r"commit|提交|git":            ("commit",      ("提交了多少次？回复数字"), "次"),
+    r"睡觉|睡了|睡眠|sleep":      ("sleep_hours", ("睡了多久？回复小时数"), "小时"),
+    r"练琴|练习|练了|practice":   ("practice",    ("练习了多久？回复分钟数"), "分钟"),
+}
+
+# In-memory follow-up context store (token → {action_type, prompt, timeout})
+_followup_context: dict[str, dict] = {}
+
 
 # ── Parse Functions ────────────────────────────────────────────────────────
 
-def parse_message(text: str) -> dict:
+def parse_message(text: str, token: str = "") -> dict:
     """
     Parse user chat message into an action dict.
 
-    Priority: slash commands > natural patterns > fuzzy patterns > greeting/fallback
+    Priority: follow-up context > slash commands > natural patterns > fuzzy patterns > greeting/fallback
+
+    Args:
+        text: user message
+        token: optional auth token for follow-up context lookup
 
     Returns:
         {
@@ -176,6 +213,31 @@ def parse_message(text: str) -> dict:
     }
 
     if not text:
+        return result
+
+    # 0. Check follow-up context (user was asked "how many?")
+    if token and token in _followup_context:
+        ctx = _followup_context[token]
+        # Try to extract a number from the reply
+        num_match = re.search(r"(\d+\.?\d*)", text)
+        if num_match:
+            amount = float(num_match.group(1))
+            del _followup_context[token]
+            result["action"] = "record"
+            result["params"] = {
+                "action_type": ctx["action_type"],
+                "amount": amount,
+            }
+            return result
+        # User typed something non-numeric → cancel follow-up
+        if text.lower() in ("取消", "cancel", "取消", "不要", "不了"):
+            del _followup_context[token]
+            result["action"] = "cancelled"
+            result["params"] = {"message": "已取消记录"}
+            return result
+        # Non-numeric reply → still ask
+        result["action"] = "ask_quantity"
+        result["params"] = {"message": ctx["prompt"]}
         return result
 
     # 1. Slash commands
@@ -209,7 +271,20 @@ def parse_message(text: str) -> dict:
             }
             return result
 
-    # 3. Fuzzy intent
+    # 3. Fuzzy record intents (trigger follow-up)
+    if token:
+        for pattern, (action_type, prompt, unit) in FUZZY_RECORD_INTENTS.items():
+            if re.search(pattern, text):
+                _followup_context[token] = {
+                    "action_type": action_type,
+                    "prompt": prompt,
+                    "unit": unit,
+                }
+                result["action"] = "ask_quantity"
+                result["params"] = {"message": prompt}
+                return result
+
+    # 4. Fuzzy intent
     for pattern, intent in FUZZY_PATTERNS.items():
         if re.search(pattern, text):
             result["action"] = intent
@@ -363,11 +438,13 @@ def format_help() -> str:
 - `/help` — 帮助
 
 **自然语言** (直接说):
-- 「背了50个单词」→ 记录单词
-- 「运动30分钟」→ 记录运动
+- 「背了50个单词」/「背单词」→ 记录单词（支持追问）
+- 「运动30分钟」/「跑了5公里」→ 记录运动
 - 「走了10000步」→ 记录步数
-- 「读了40页」→ 记录阅读
+- 「读了40页」/「读了30分钟」→ 记录阅读
 - 「写了500行代码」→ 记录编码
+- 「commit 3次」→ 记录提交
+- 「练了60分钟」→ 记录练习
 
 试试用自然语言描述你的行动！"""
 
@@ -391,6 +468,15 @@ def execute_action(player: dict, action: str, params: dict) -> dict:
     if action == "status":
         result["response"] = f"{PERSONA_PREFIX}\n\n{format_status(player)}"
 
+    elif action == "ask_quantity":
+        # Follow-up: bot asked "how many?" and user replied non-numeric
+        msg = params.get("message", "请回复一个数字")
+        result["response"] = f"{PERSONA_PREFIX}\n\n{msg}"
+
+    elif action == "cancelled":
+        msg = params.get("message", "已取消")
+        result["response"] = f"{PERSONA_PREFIX}\n\n{msg}"
+
     elif action == "daily":
         tasks = eng["generate_daily_tasks"](player)
         result["response"] = f"{PERSONA_PREFIX}\n\n{format_daily_tasks(tasks)}"
@@ -406,6 +492,24 @@ def execute_action(player: dict, action: str, params: dict) -> dict:
         eng["save_player"](player)
         gold = exp_info // 10
         player["gold"] = player.get("gold", 0) + gold
+
+        # Broadcast SSE event for real-time notification
+        try:
+            from events import broadcast
+            broadcast("activity", {
+                "type": action_type,
+                "quantity": amount,
+                "exp": exp_info,
+                "source": "chat",
+            })
+            if level_msgs:
+                broadcast("level_up", {
+                    "level": player["level"],
+                    "title": eng["get_title"](player["level"]),
+                    "messages": level_msgs,
+                })
+        except ImportError:
+            pass
 
         parts = [f"{PERSONA_PREFIX}\n\n"]
         parts.append(f"📝 记录: {action_type} × {amount}\n")
@@ -536,9 +640,6 @@ def execute_action(player: dict, action: str, params: dict) -> dict:
 
     elif action == "help":
         result["response"] = format_help()
-
-    elif action == "status":
-        result["response"] = f"{PERSONA_PREFIX}\n\n{format_status(player)}"
 
     elif action == "unknown":
         result["response"] = f"{PERSONA_PREFIX}\n\n{PERSONA_CONFUSED}\n\n回复 `/help` 查看可用命令。"

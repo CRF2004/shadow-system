@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Shadow System</title>
+  <style>
+    body { width: 320px; padding: 12px; font-family: 'Courier New', monospace;
+           background: #1a1a2e; color: #e0e0e0; margin: 0; }
+    h2 { margin: 0 0 8px; font-size: 16px; color: #c9a84c; }
+    .stat { display: flex; justify-content: space-between; padding: 4px 0;
+            border-bottom: 1px solid #2a2a4e; font-size: 12px; }
+    .stat .val { color: #7ec8e3; }
+    .section { margin: 8px 0; padding: 8px; background: #16213e; border-radius: 4px; }
+    .site-item { font-size: 11px; padding: 2px 0; }
+    .site-item .cat { color: #c9a84c; }
+    .footer { margin-top: 8px; font-size: 10px; color: #666; text-align: center; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+                  margin-right: 4px; }
+    .status-dot.on { background: #4caf50; }
+    .status-dot.off { background: #f44336; }
+    button { background: #c9a84c; color: #1a1a2e; border: none; padding: 6px 16px;
+             border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 12px;
+             margin-top: 8px; width: 100%; }
+    button:hover { background: #dbb84c; }
+  </style>
+</head>
+<body>
+  <h2>⚔ Shadow System</h2>
+
+  <div class="section">
+    <div class="stat">
+      <span>Server</span>
+      <span class="val" id="serverUrl">--</span>
+    </div>
+    <div class="stat">
+      <span>API Token</span>
+      <span class="val" id="tokenStatus"><span class="status-dot off"></span>Not set</span>
+    </div>
+    <div class="stat">
+      <span>Session</span>
+      <span class="val" id="sessionMinutes">0 min</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="stat">
+      <span>Tracked Sites</span>
+      <span class="val" id="siteCount">0</span>
+    </div>
+    <div class="stat">
+      <span>Total Time</span>
+      <span class="val" id="totalMinutes">0 min</span>
+    </div>
+    <div id="siteList"></div>
+  </div>
+
+  <button id="openOptions">⚙ Settings</button>
+  <div class="footer">v1.0.0 — Report every <span id="intervalDisplay">5</span> min</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

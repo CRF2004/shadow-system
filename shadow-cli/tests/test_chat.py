@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from state import create_default_player
 from chat_processor import parse_message, execute_action, build_chat_response, stream_response

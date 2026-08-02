@@ -8,7 +8,7 @@ import os
 import sys
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -202,9 +202,12 @@ class TestHealthSummary(unittest.TestCase):
 
     def test_get_health_summary_with_data(self):
         """Summary should reflect stored health data."""
+        today = datetime.now()
+        d1 = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+        d2 = (today - timedelta(days=2)).strftime("%Y-%m-%d")
         self.player["healthData"] = {
-            "2026-05-08": {"steps": 5000, "exerciseMin": 30, "sleepHours": 8},
-            "2026-05-07": {"steps": 8000, "exerciseMin": 20, "sleepHours": 7},
+            d1: {"steps": 5000, "exerciseMin": 30, "sleepHours": 8},
+            d2: {"steps": 8000, "exerciseMin": 20, "sleepHours": 7},
         }
         summary = get_health_summary(self.player, days=7)
         self.assertEqual(summary["days_with_data"], 2)
@@ -388,8 +391,10 @@ class TestBrowserSummary(unittest.TestCase):
 
     def test_get_browser_summary_with_data(self):
         """Summary should reflect stored browser data."""
+        today = datetime.now()
+        d1 = (today - timedelta(days=1)).strftime("%Y-%m-%d")
         self.player["browserData"] = {
-            "2026-05-08": {"totalMinutes": 60, "sites": {"leetcode.com": 45, "stackoverflow.com": 15}},
+            d1: {"totalMinutes": 60, "sites": {"leetcode.com": 45, "stackoverflow.com": 15}},
         }
         summary = get_browser_summary(self.player, days=7)
         self.assertEqual(summary["days_with_data"], 1)

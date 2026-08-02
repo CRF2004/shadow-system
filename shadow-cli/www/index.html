@@ -4,275 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shadow CLI - 暗影君主</title>
-<style>
-/* ── Reset & Base ────────────────────────────────────────── */
-*{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg:#0a0a12;--card:#12121f;--border:#2a2a3a;
-  --gold:#ffd700;--red:#ff4757;--blue:#3742fa;--green:#2ed573;
-  --purple:#a855f7;--cyan:#06b6d4;--orange:#ff8c00;
-  --text:#e0e0e8;--dim:#6b7280;
-}
-body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
-h1,h2,h3{font-weight:600}
-
-/* ── Layout ─────────────────────────────────────────────── */
-.app{display:grid;grid-template-columns:220px 1fr;grid-template-rows:56px 1fr;min-height:100vh}
-@media(max-width:768px){
-  .app{grid-template-columns:1fr;grid-template-rows:56px 1fr 56px}
-  .sidebar{grid-row:auto;grid-column:1/-1;display:flex;overflow-x:auto;border-bottom:1px solid var(--border);border-right:none}
-  .sidebar .logo{display:none}
-  .sidebar nav{flex:1}
-  .main{padding-bottom:64px}
-}
-
-/* ── Header ─────────────────────────────────────────────── */
-.header{grid-column:1/-1;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;z-index:10}
-.header .logo{font-size:18px;font-weight:700;color:var(--gold)}
-.header .logo span{color:var(--dim);font-size:12px;margin-left:6px}
-.header .right{margin-left:auto;display:flex;align-items:center;gap:16px;font-size:13px}
-.header .gold-icon{color:var(--gold)}
-
-/* ── Sidebar ────────────────────────────────────────────── */
-.sidebar{background:var(--card);border-right:1px solid var(--border);padding:16px 0;overflow-y:auto}
-.sidebar .logo{padding:0 16px 16px;font-size:16px;font-weight:700;color:var(--gold);border-bottom:1px solid var(--border);margin-bottom:8px}
-.sidebar nav a{display:flex;align-items:center;gap:10px;padding:10px 16px;color:var(--dim);text-decoration:none;font-size:14px;transition:all .15s;border-left:3px solid transparent;cursor:pointer}
-.sidebar nav a:hover{background:rgba(255,215,0,.05);color:var(--text)}
-.sidebar nav a.active{color:var(--gold);border-left-color:var(--gold);background:rgba(255,215,0,.08)}
-.sidebar nav a .icon{width:20px;text-align:center}
-
-/* ── Main ───────────────────────────────────────────────── */
-.main{padding:24px;overflow-y:auto}
-.tab-content{display:none}
-.tab-content.active{display:block}
-
-/* ── Cards ──────────────────────────────────────────────── */
-.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
-.card-title{font-size:14px;color:var(--dim);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
-.card h3{font-size:16px;margin-bottom:12px}
-
-/* ── Grid helpers ───────────────────────────────────────── */
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
-.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-@media(max-width:768px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
-
-/* ── Stat bars ──────────────────────────────────────────── */
-.bar-wrap{background:#1a1a2e;border-radius:6px;height:20px;overflow:hidden;position:relative}
-.bar-fill{height:100%;border-radius:6px;transition:width .5s ease;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
-.bar-fill.hp{background:linear-gradient(90deg,#ff4757,#ff6b81)}
-.bar-fill.mp{background:linear-gradient(90deg,#3742fa,#5f6aff)}
-.bar-fill.exp{background:linear-gradient(90deg,#ffd700,#ffaa00)}
-.bar-fill.gold-bar{background:linear-gradient(90deg,#ff8c00,#ffa500)}
-
-/* ── Big stats ──────────────────────────────────────────── */
-.stat-big{text-align:center;padding:16px}
-.stat-big .value{font-size:28px;font-weight:700;color:var(--gold)}
-.stat-big .label{font-size:12px;color:var(--dim);margin-top:4px}
-
-/* ── Buttons ────────────────────────────────────────────── */
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:13px;cursor:pointer;transition:all .15s}
-.btn:hover{border-color:var(--gold);color:var(--gold);box-shadow:0 0 12px rgba(255,215,0,.15)}
-.btn:active{transform:scale(.97)}
-.btn-primary{background:var(--gold);color:#000;border-color:var(--gold);font-weight:600}
-.btn-primary:hover{background:#ffec44;box-shadow:0 0 16px rgba(255,215,0,.3)}
-.btn-sm{padding:5px 10px;font-size:12px}
-.btn-danger{border-color:var(--red);color:var(--red)}
-.btn-danger:hover{background:rgba(255,71,87,.1)}
-.btn-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-
-/* ── Task items ─────────────────────────────────────────── */
-.task-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;margin-bottom:8px}
-.task-item .check{width:24px;height:24px;border:2px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
-.task-item.completed .check{background:var(--green);border-color:var(--green);color:#fff}
-.task-item .info{flex:1}
-.task-item .info .name{font-size:14px}
-.task-item .info .detail{font-size:12px;color:var(--dim)}
-.task-item .reward{font-size:12px;color:var(--gold);white-space:nowrap}
-.task-item .diff{font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.08)}
-
-/* ── Achievement grid ───────────────────────────────────── */
-.ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.ach-card{padding:16px;border:1px solid var(--border);border-radius:10px;text-align:center;transition:all .2s}
-.ach-card.unlocked{border-color:var(--gold);background:rgba(255,215,0,.05)}
-.ach-card.locked{opacity:.5;border-color:var(--border)}
-.ach-card .icon{font-size:28px;margin-bottom:8px}
-.ach-card .name{font-size:14px;font-weight:600}
-.ach-card .desc{font-size:11px;color:var(--dim);margin-top:4px}
-.ach-card .reward{font-size:11px;color:var(--gold);margin-top:6px}
-
-/* ── Shop items ─────────────────────────────────────────── */
-.shop-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;margin-bottom:8px}
-.shop-item .s-icon{font-size:24px;width:40px;text-align:center}
-.shop-item .s-info{flex:1}
-.shop-item .s-info .s-name{font-size:14px;font-weight:600}
-.shop-item .s-info .s-desc{font-size:12px;color:var(--dim)}
-.shop-item .s-price{font-size:13px;color:var(--gold);white-space:nowrap}
-.shop-item .s-req{font-size:10px;color:var(--purple);margin-left:4px}
-
-/* ── Boss ───────────────────────────────────────────────── */
-.boss-card{display:flex;align-items:center;gap:16px;padding:16px;background:rgba(255,71,87,.05);border:1px solid rgba(255,71,87,.3);border-radius:10px;margin-bottom:12px}
-.boss-card.defeated{opacity:.5;border-color:var(--green)}
-.boss-card .b-icon{font-size:32px}
-.boss-card .b-info{flex:1}
-.boss-card .b-name{font-size:16px;font-weight:700;color:var(--red)}
-.boss-card.defeated .b-name{color:var(--green)}
-.boss-card .b-desc{font-size:12px;color:var(--dim);margin-top:2px}
-.boss-card .b-reward{font-size:12px;color:var(--gold);margin-top:4px}
-
-/* ── Form inputs ────────────────────────────────────────── */
-.input-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
-.input-row label{font-size:13px;color:var(--dim);min-width:60px}
-.input-row input,.input-row select{background:#1a1a2e;border:1px solid var(--border);border-radius:6px;padding:6px 12px;color:var(--text);font-size:13px;outline:none}
-.input-row input:focus,.input-row select:focus{border-color:var(--gold)}
-
-/* ── Toast notifications ────────────────────────────────── */
-#toast-container{position:fixed;top:70px;right:20px;z-index:1000;display:flex;flex-direction:column;gap:8px}
-.toast{padding:12px 20px;border-radius:8px;font-size:13px;animation:slideIn .3s ease;max-width:360px}
-.toast.success{background:rgba(46,213,115,.15);border:1px solid var(--green);color:var(--green)}
-.toast.error{background:rgba(255,71,87,.15);border:1px solid var(--red);color:var(--red)}
-.toast.info{background:rgba(55,66,250,.15);border:1px solid var(--blue);color:var(--blue)}
-.toast.levelup{background:rgba(255,215,0,.15);border:1px solid var(--gold);color:var(--gold);font-weight:600}
-@keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
-
-/* ── Misc ───────────────────────────────────────────────── */
-.loading{text-align:center;padding:40px;color:var(--dim)}
-.empty{text-align:center;padding:20px;color:var(--dim);font-size:13px}
-.mt-12{margin-top:12px}
-.mt-16{margin-top:16px}
-.mb-8{margin-bottom:8px}
-.text-gold{color:var(--gold)}
-.text-green{color:var(--green)}
-.text-red{color:var(--red)}
-.text-blue{color:var(--blue)}
-.text-dim{color:var(--dim)}
-
-/* ── Section title ──────────────────────────────────────── */
-.section-title{font-size:20px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px}
-.section-title .emoji{font-size:24px}
-
-/* ── Stat row ───────────────────────────────────────────── */
-.stat-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
-.stat-row:last-child{border-bottom:none}
-.stat-row .stat-label{width:80px;font-size:13px;color:var(--dim)}
-.stat-row .stat-value{font-size:18px;font-weight:700;color:var(--gold)}
-.stat-row .stat-bar{flex:1}
-.stat-row .alloc-btns{display:flex;gap:4px}
-
-/* ── Integration panel ──────────────────────────────────── */
-.int-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.05)}
-.int-row:last-child{border-bottom:none}
-.int-row .int-icon{font-size:20px;width:32px;text-align:center}
-.int-row .int-info{flex:1}
-.int-row .int-name{font-size:14px;font-weight:600}
-.int-row .int-desc{font-size:11px;color:var(--dim)}
-.int-row .int-status{font-size:12px;padding:4px 8px;border-radius:4px}
-.int-row .int-status.on{background:rgba(46,213,115,.15);color:var(--green)}
-.int-row .int-status.off{background:rgba(255,255,255,.05);color:var(--dim)}
-
-/* ── Auth overlay ───────────────────────────────────────── */
-#auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center}
-#auth-overlay.hidden{display:none}
-.auth-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;width:380px;max-width:90vw;text-align:center}
-.auth-box h2{font-size:24px;color:var(--gold);margin-bottom:8px}
-.auth-box p{font-size:13px;color:var(--dim);margin-bottom:24px}
-.auth-box input{width:100%;background:#1a1a2e;border:1px solid var(--border);border-radius:8px;padding:12px 16px;color:var(--text);font-size:15px;outline:none;margin-bottom:12px}
-.auth-box input:focus{border-color:var(--gold)}
-.auth-box .btn-primary{width:100%;padding:12px;font-size:15px;margin-top:4px}
-.auth-box .switch{font-size:13px;color:var(--dim);margin-top:16px}
-.auth-box .switch a{color:var(--gold);cursor:pointer;text-decoration:none}
-.auth-box .auth-error{color:var(--red);font-size:13px;margin-top:8px;min-height:20px}
-.auth-box .auth-icon{font-size:48px;margin-bottom:12px}
-
-/* ── Onboarding overlay ───────────────────── */
-#onboard-overlay{position:fixed;inset:0;background:var(--bg);z-index:8888;display:flex;align-items:center;justify-content:center;overflow-y:auto;padding:24px}
-#onboard-overlay.hidden{display:none}
-.onboard-box{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:32px;width:560px;max-width:95vw;text-align:center}
-.onboard-box h2{font-size:22px;color:var(--gold);margin-bottom:6px}
-.onboard-box p{font-size:13px;color:var(--dim);margin-bottom:20px}
-.onboard-steps{display:flex;justify-content:center;gap:8px;margin-bottom:24px}
-.onboard-step{width:10px;height:10px;border-radius:50%;background:var(--border);transition:.2s}
-.onboard-step.active{background:var(--gold);width:28px;border-radius:5px}
-.onboard-step.done{background:var(--green)}
-.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;text-align:left}
-.preset-card{background:#1a1a2e;border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;transition:.15s}
-.preset-card:hover{border-color:var(--gold);background:rgba(255,215,0,.05)}
-.preset-card .pname{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px}
-.preset-card .pdesc{font-size:12px;color:var(--dim)}
-.onboard-divider{font-size:13px;color:var(--dim);margin:16px 0;display:flex;align-items:center;gap:12px}
-.onboard-divider::before,.onboard-divider::after{content:'';flex:1;height:1px;background:var(--border)}
-.onboard-input-row{display:flex;gap:8px;margin-bottom:12px}
-.onboard-input-row input{flex:1;background:#1a1a2e;border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:14px;outline:none}
-.onboard-input-row input:focus{border-color:var(--gold)}
-.onboard-input-row .btn{padding:10px 16px;font-size:14px}
-.skill-tags{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0}
-.skill-tag{background:#1a1a2e;border:1px solid var(--gold);border-radius:20px;padding:6px 14px;font-size:13px;color:var(--gold);cursor:default;display:flex;align-items:center;gap:6px}
-.skill-tag .remove{cursor:pointer;opacity:.6;font-size:16px;line-height:1}
-.skill-tag .remove:hover{opacity:1}
-.config-list{text-align:left;max-height:320px;overflow-y:auto;margin:12px 0}
-.config-item{background:#1a1a2e;border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:grid;grid-template-columns:40px 1fr auto;align-items:center;gap:12px;text-align:left}
-.config-item .c-icon{font-size:24px}
-.config-item .c-name{font-size:14px;font-weight:600;color:var(--text)}
-.config-item .c-detail{font-size:12px;color:var(--dim);margin-top:2px}
-.config-item .c-remove{background:none;border:1px solid var(--border);border-radius:6px;color:var(--dim);padding:4px 10px;cursor:pointer;font-size:12px;transition:.15s}
-.config-item .c-remove:hover{border-color:var(--red);color:var(--red)}
-.onboard-footer{display:flex;gap:12px;justify-content:center;margin-top:20px}
-.onboard-loading{color:var(--gold);font-size:14px;margin:16px 0}
-
-/* ── Guild tab ──────────────────────────────────────────── */
-.guild-header{display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap}
-.guild-badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
-.guild-badge.creatable{background:rgba(55,66,250,.2);color:var(--blue)}
-.guild-badge.member{background:rgba(255,215,0,.15);color:var(--gold)}
-.guild-badge.leader{background:rgba(255,215,0,.25);color:var(--gold);border:1px solid var(--gold)}
-.guild-member{display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;margin-bottom:6px}
-.guild-member .role{font-size:11px;padding:2px 6px;border-radius:4px;font-weight:600}
-.guild-member .role.leader{background:rgba(255,215,0,.2);color:var(--gold)}
-.guild-member .role.officer{background:rgba(168,85,247,.2);color:var(--purple)}
-.guild-member .role.member{background:rgba(255,255,255,.05);color:var(--dim)}
-.guild-member .m-info{flex:1;font-size:14px}
-.guild-member .m-contrib{font-size:12px;color:var(--gold)}
-.guild-member .m-actions{display:flex;gap:4px}
-.guild-task-bar{background:#1a1a2e;border-radius:6px;height:24px;overflow:hidden;position:relative;margin:8px 0}
-.guild-task-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--purple),var(--blue));transition:width .5s;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
-.guild-boss-hp{background:#1a1a2e;border-radius:6px;height:28px;overflow:hidden;position:relative;margin:8px 0}
-.guild-boss-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--red),var(--orange));transition:width .5s;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff}
-.guild-log{font-size:12px;color:var(--dim);padding:6px 0;border-bottom:1px solid rgba(255,255,255,.03)}
-.guild-log:last-child{border-bottom:none}
-.guild-log .time{color:var(--dim);margin-right:8px}
-
-/* ── Guild list cards ───────────────────────────────────── */
-.guild-card{display:flex;align-items:center;gap:14px;padding:14px 18px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:10px;margin-bottom:8px}
-.guild-card .g-name{font-size:15px;font-weight:600;flex:1}
-.guild-card .g-info{font-size:12px;color:var(--dim)}
-.guild-card .g-rank{font-size:11px;padding:3px 8px;border-radius:4px;background:rgba(255,215,0,.1);color:var(--gold)}
-
-/* ── Event feed ─────────────────────────────────────────── */
-#event-feed{position:fixed;bottom:0;right:0;width:360px;max-height:300px;overflow-y:auto;background:rgba(10,10,18,.95);border-top:1px solid var(--border);border-left:1px solid var(--border);border-radius:12px 0 0 0;padding:12px;font-size:12px;z-index:50;display:none}
-#event-feed.visible{display:block}
-#event-feed .evt{padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)}
-#event-feed .evt:last-child{border-bottom:none}
-#event-feed .evt-type{color:var(--purple);font-weight:600;margin-right:6px}
-#event-feed .evt-data{color:var(--text)}
-@media(max-width:768px){#event-feed{width:100%;border-radius:0}}
-
-/* ── Narrative overlay (cinematic full-screen story) ───── */
-#narrative-overlay{position:fixed;inset:0;background:rgba(10,10,18,0.96);z-index:9200;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:32px;cursor:pointer}
-#narrative-overlay.show{display:flex;animation:fadeIn .4s ease}
-#narrative-overlay.fade-out{animation:fadeOut .6s ease forwards}
-#narrative-overlay.hidden-nar{display:none!important}
-#narrative-title{font-size:clamp(24px,5vw,36px);font-weight:700;color:var(--gold);margin-bottom:16px;opacity:0;max-width:800px;line-height:1.4}
-#narrative-body{font-size:clamp(14px,3vw,18px);color:var(--text);max-width:640px;line-height:1.8;opacity:0;margin-bottom:8px}
-#narrative-sub{font-size:13px;color:var(--dim);opacity:0}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-@keyframes fadeOut{from{opacity:1}to{opacity:0}}
-.narrate-title-anim{animation:titleReveal .5s ease .3s both}
-.narrate-body-anim{animation:bodyReveal .6s ease .9s both}
-.narrate-sub-anim{animation:subReveal .4s ease 1.3s both}
-@keyframes titleReveal{from{opacity:0;transform:translateY(-24px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}
-@keyframes bodyReveal{from{opacity:0;filter:blur(4px)}to{opacity:1;filter:blur(0)}}
-@keyframes subReveal{from{opacity:0}to{opacity:1}}
-</style>
+<link rel="stylesheet" href="css/base.css?v=1778343276">
+<link rel="stylesheet" href="css/layout.css?v=1778343276">
+<link rel="stylesheet" href="css/components.css?v=1778343276">
+<link rel="stylesheet" href="css/tabs.css?v=1778343276">
 </head>
 <body>
 <!-- Auth overlay (shown when not logged in) -->
@@ -376,6 +111,7 @@ h1,h2,h3{font-weight:600}
       <a data-tab="integrations"><span class="icon">🔗</span> 集成</a>
       <a data-tab="guild"><span class="icon">🏰</span> 公会</a>
       <a data-tab="analytics"><span class="icon">📊</span> 数据洞察</a>
+      <a data-tab="manual"><span class="icon">📜</span> 手册</a>
     </nav>
   </div>
 
@@ -385,6 +121,8 @@ h1,h2,h3{font-weight:600}
     <!-- Dashboard -->
     <div class="tab-content active" id="tab-dashboard">
       <div class="section-title"><span class="emoji">⚔️</span> 角色状态</div>
+      <!-- Core Loop Visualizer -->
+      <div class="core-loop" id="core-loop"></div>
       <div class="grid-4" id="dash-stats"></div>
       <div class="card mt-16" id="dash-bars"></div>
       <div class="grid-2 mt-16" id="dash-stats-row"></div>
@@ -400,7 +138,48 @@ h1,h2,h3{font-weight:600}
     <!-- Actions -->
     <div class="tab-content" id="tab-actions">
       <div class="section-title"><span class="emoji">⚡</span> 快捷操作</div>
-      <div class="card">
+
+      <!-- Dynamic Skill Quick Action Buttons -->
+      <div id="skill-quick-grid" class="skill-grid"></div>
+
+      <!-- Record Input Panel (shown after clicking a skill button) -->
+      <div class="record-panel" id="record-panel">
+        <div class="rp-header">
+          <span class="rp-icon" id="rp-icon">🎸</span>
+          <div>
+            <div class="rp-name" id="rp-name">吉他</div>
+            <div class="rp-unit" id="rp-unit">单位: 分钟</div>
+            <div class="rp-exp-info" id="rp-exp-info">每次 +2 EXP | 每日上限 120 EXP</div>
+          </div>
+        </div>
+        <div class="rp-input-row">
+          <input type="number" id="rp-qty" value="30" min="1" placeholder="数量">
+          <span class="unit-label" id="rp-unit-label">分钟</span>
+          <button class="btn btn-primary" onclick="doRecordFromPanel()">记录</button>
+          <button class="btn" onclick="closeRecordPanel()">取消</button>
+        </div>
+        <div class="rp-quick-btns">
+          <button class="btn" onclick="setRpQty(1)">+1</button>
+          <button class="btn" onclick="setRpQty(5)">+5</button>
+          <button class="btn" onclick="setRpQty(10)">+10</button>
+          <button class="btn" onclick="setRpQty(30)">+30</button>
+          <button class="btn" onclick="setRpQty(60)">+60</button>
+        </div>
+        <div class="rp-result" id="rp-result"></div>
+      </div>
+
+      <!-- Fallback: no skills configured -->
+      <div id="empty-skills-msg" style="display:none">
+        <div class="empty-skills">
+          <div class="es-icon">📋</div>
+          <div class="es-title">尚未配置技能</div>
+          <div class="es-desc">配置技能后，这里会显示你的专属快捷操作按钮<br>你可以前往新手引导或集成设置中添加技能</div>
+          <button class="btn btn-primary" onclick="showOnboard(true);showOnboardStep(1)">开始配置</button>
+        </div>
+      </div>
+
+      <!-- Legacy Record Form (fallback with select) -->
+      <div class="card" id="legacy-record-card">
         <h3>记录行为</h3>
         <div class="input-row">
           <label>类型</label>
@@ -420,6 +199,7 @@ h1,h2,h3{font-weight:600}
       </div>
       <div class="card">
         <h3>分配属性点</h3>
+        <div id="alloc-points-info" class="text-gold mb-8">可用属性点: 加载中...</div>
         <div class="input-row">
           <label>属性</label>
           <select id="alloc-stat">
@@ -536,6 +316,147 @@ h1,h2,h3{font-weight:600}
       </div>
       <!-- Type breakdown -->
       <div class="card mt-16" id="analytics-breakdown"></div>
+      <!-- Smart reminders -->
+      <div class="card mt-16" id="analytics-reminders"></div>
+    </div>
+
+    <!-- Manual -->
+    <div class="tab-content" id="tab-manual">
+      <div class="section-title"><span class="emoji">📜</span> 暗影手册</div>
+
+      <div class="manual-section">
+        <h3>⚡ 核心循环</h3>
+        <p>暗影系统的核心玩法很简单：<b>记录行为 → 获得 EXP → 升级 → 变强</b></p>
+        <div class="manual-flow">
+          <div class="mf-step" onclick="navToTab('actions')">⚡ 记录行为</div>
+          <span class="mf-arrow">→</span>
+          <div class="mf-step" onclick="navToTab('dashboard')">⬆️ 获得 EXP</div>
+          <span class="mf-arrow">→</span>
+          <div class="mf-step" onclick="navToTab('dashboard')">🎉 升级</div>
+          <span class="mf-arrow">→</span>
+          <div class="mf-step" onclick="navToTab('actions')">📊 分配属性</div>
+          <span class="mf-arrow">→</span>
+          <div class="mf-step" onclick="navToTab('dungeons')">🏰 挑战副本</div>
+        </div>
+      </div>
+
+      <div class="manual-section">
+        <h3>📊 经验公式</h3>
+        <p>升级所需经验值随等级递增：</p>
+        <div class="manual-formula">EXPₙ = 100 × 1.5^(n-1)</div>
+        <p>每个技能有独立 EXP 计算方式：</p>
+        <div class="ms-tip">
+          <div class="tip-title">示例</div>
+          <p>🎸 吉他：每 1 分钟 = +2 EXP，每日上限 120 EXP，建议目标 30 分钟</p>
+        </div>
+        <div class="ms-tip">
+          <div class="tip-title">连击加成</div>
+          <p>连续打卡每天获得额外 EXP 加成：基础 × (1 + 连击天数 × 5%) × (1 + Combo × 10%)</p>
+        </div>
+      </div>
+
+      <div class="manual-section">
+        <h3>⚡ 快捷操作</h3>
+        <ul>
+          <li>技能按钮网格 — 点击即可快速记录，预填每日目标数量</li>
+          <li>快捷数量按钮 — +1 / +5 / +10 / +30 / +60 快速调整</li>
+          <li>叙事动画 — 每次记录都有 RPG 风格的沉浸反馈</li>
+          <li>升级动画 — 全屏电影级叙事，庆祝突破</li>
+        </ul>
+        <div class="ms-tip">
+          <div class="tip-title">💡 提示</div>
+          <p>快捷按钮基于你的技能配置动态生成，不同技能套餐显示不同按钮</p>
+        </div>
+      </div>
+
+      <div class="manual-section">
+        <h3>📋 每日任务</h3>
+        <p>每日任务根据你的技能配置自动生成：</p>
+        <ul>
+          <li>每个技能对应一个日常任务，目标值 = 技能设定的每日目标</li>
+          <li>完成所有任务可领取总奖励 EXP + 金币</li>
+          <li>每日奖励领取后连击 +1，连续打卡获得更多加成</li>
+          <li>随机紧急任务 — 完成可获得更高奖励</li>
+        </ul>
+      </div>
+
+      <div class="manual-section">
+        <h3>⚔️ 士兵与军团</h3>
+        <p>消耗 MP 召唤暗影士兵，7 种类型各有特色：</p>
+        <ul>
+          <li>🔍 虚空行者、🧭 战略家、🔨 构造者、🧪 试炼官、🩺 诊断师、⚖️ 审判者、📝 书记官</li>
+          <li>士兵数量增加战力（每个 +5 战力）</li>
+          <li>小型(3人) / 中型(5人) / 大型(7人) 军团召唤</li>
+        </ul>
+      </div>
+
+      <div class="manual-section">
+        <h3>🏰 副本与 Boss</h3>
+        <ul>
+          <li>每日副本 — 24小时内完成，多技能任务组合</li>
+          <li>每周副本 — LV.10+ 解锁，高难度高奖励</li>
+          <li>Boss 战 — LV.10+ 解锁，基于你的技能生成</li>
+        </ul>
+      </div>
+
+      <div class="manual-section">
+        <h3>🏪 商店系统</h3>
+        <p>完成任务和成就获得金币，可用于购买：</p>
+        <ul>
+          <li>🧪 消耗品 — 体力药水(恢复HP)、经验书(直接+EXP)、双倍经验符</li>
+          <li>⚔️ 装备 — 提升属性和战力</li>
+          <li>👑 外观 — 称号后缀、特效</li>
+          <li>⚙️ 功能 — 解锁新能力</li>
+        </ul>
+      </div>
+
+      <div class="manual-section">
+        <h3>🔗 数据集成</h3>
+        <p>连接外部数据源自动获得 EXP：</p>
+        <ul>
+          <li>🏃 健康数据 — 步数/运动/睡眠 → EXP</li>
+          <li>📖 阅读数据 — 时长/页数/书名 → EXP</li>
+          <li>🌐 浏览器活动 — 学习时长 → EXP</li>
+        </ul>
+      </div>
+
+      <div class="manual-section">
+        <h3>🏰 公会系统</h3>
+        <p>与其他玩家组队协作：</p>
+        <ul>
+          <li>创建或加入公会（最多 20 人）</li>
+          <li>公会任务 — 全员贡献 EXP 共同完成</li>
+          <li>Boss 战 — 集体攻击，按伤害分配奖励</li>
+          <li>排行榜 — 按公会贡献度排名</li>
+        </ul>
+      </div>
+
+      <div class="manual-section">
+        <h3>📊 数据洞察</h3>
+        <p>查看你的成长数据：</p>
+        <ul>
+          <li>周报/月报 — 每日趋势、缺勤天数、平均 EXP</li>
+          <li>数据洞察 — AI 个性化建议</li>
+          <li>连击历史 — 最佳连续天数、完成率</li>
+          <li>活动分布 — 各技能 EXP 占比</li>
+        </ul>
+      </div>
+
+      <div class="manual-section">
+        <h3>🎯 快速入门检查清单</h3>
+        <div class="ms-tip">
+          <div class="tip-title">第一天</div>
+          <p>□ 完成技能配置 → □ 记录第一个行为 → □ 完成每日任务 → □ 领取奖励</p>
+        </div>
+        <div class="ms-tip">
+          <div class="tip-title">第一周</div>
+          <p>□ 连续打卡 7 天 → □ 召唤第一个士兵 → □ 进入第一个副本 → □ 分配所有属性点 → □ 购买一件商店物品</p>
+        </div>
+        <div class="ms-tip">
+          <div class="tip-title">第一月</div>
+          <p>□ 达到 LV.10 → □ 击败 Boss → □ 创建/加入公会 → □ 获得 10 个成就 → □ 解锁所有副本</p>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -549,1534 +470,28 @@ h1,h2,h3{font-weight:600}
   <div id="narrative-sub"></div>
 </div>
 
-<script>
-const API = '/api';
-
-/* ── Toast ──────────────────────────────────────────────── */
-function toast(msg, type='info'){
-  const el = document.createElement('div');
-  el.className = 'toast ' + type;
-  el.textContent = msg;
-  document.getElementById('toast-container').appendChild(el);
-  setTimeout(() => el.remove(), 4000);
-}
-
-/* ── Tab navigation ─────────────────────────────────────── */
-document.querySelectorAll('#nav a').forEach(a => {
-  a.addEventListener('click', () => {
-    document.querySelectorAll('#nav a').forEach(x => x.classList.remove('active'));
-    a.classList.add('active');
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    document.getElementById('tab-' + a.dataset.tab).classList.add('active');
-    // Load tab data
-    const tab = a.dataset.tab;
-    if(tab==='dashboard') loadDashboard();
-    else if(tab==='tasks') loadTasks();
-    else if(tab==='achievements') loadAchievements();
-    else if(tab==='shop') loadShop();
-    else if(tab==='army') loadArmy();
-    else if(tab==='dungeons') loadDungeons();
-    else if(tab==='bosses') loadBosses();
-    else if(tab==='integrations') loadIntegrations();
-    else if(tab==='guild') loadGuild();
-    else if(tab==='analytics') loadAnalytics();
-  });
-});
-
-/* ── Auth State ─────────────────────────────────────────── */
-const TOKEN_KEY = 'shadow_token';
-function getToken(){ return localStorage.getItem(TOKEN_KEY) || ''; }
-function setToken(t){ if(t){ localStorage.setItem(TOKEN_KEY, t); } else { localStorage.removeItem(TOKEN_KEY); } }
-
-function isLoggedIn(){ return !!getToken(); }
-
-function showAuthOverlay(show){
-  const overlay = document.getElementById('auth-overlay');
-  if(show) overlay.classList.remove('hidden');
-  else overlay.classList.add('hidden');
-}
-
-function showLogin(){
-  document.getElementById('auth-login').style.display='';
-  document.getElementById('auth-register').style.display='none';
-  document.getElementById('login-error').textContent='';
-}
-function showRegister(){
-  document.getElementById('auth-login').style.display='none';
-  document.getElementById('auth-register').style.display='';
-  document.getElementById('reg-error').textContent='';
-}
-
-async function doLogin(){
-  const user = document.getElementById('login-user').value.trim();
-  const pass = document.getElementById('login-pass').value;
-  if(!user||!pass){ document.getElementById('login-error').textContent='请填写用户名和密码'; return; }
-  const r = await apiPostRaw('/auth/login', {username: user, password: pass});
-  if(r.success && r.token){
-    setToken(r.token);
-    showAuthOverlay(false);
-    toast('登录成功！', 'success');
-    connectSSE();
-    checkOnboarding();
-  } else {
-    document.getElementById('login-error').textContent = r.message || '登录失败';
-  }
-}
-
-async function doRegister(){
-  const user = document.getElementById('reg-user').value.trim();
-  const name = document.getElementById('reg-name').value.trim();
-  const pass = document.getElementById('reg-pass').value;
-  const pass2 = document.getElementById('reg-pass2').value;
-  if(!user||!pass){ document.getElementById('reg-error').textContent='请填写用户名和密码'; return; }
-  if(pass!==pass2){ document.getElementById('reg-error').textContent='两次密码不一致'; return; }
-  const r = await apiPostRaw('/auth/register', {username: user, password: pass, displayName: name||user});
-  if(r.success && r.token){
-    setToken(r.token);
-    showAuthOverlay(false);
-    toast(r.message || '注册成功！', 'success');
-    connectSSE();
-    checkOnboarding();
-  } else {
-    document.getElementById('reg-error').textContent = r.message || '注册失败';
-  }
-}
-
-function doLogout(){
-  setToken('');
-  showAuthOverlay(true);
-  showLogin();
-  toast('已退出登录', 'info');
-}
-
-/* ── Fetch helpers ──────────────────────────────────────── */
-function authHeaders(){
-  const h = {'Content-Type':'application/json'};
-  const t = getToken();
-  if(t) h['Authorization'] = 'Bearer ' + t;
-  return h;
-}
-
-async function apiGet(path){
-  const r = await fetch(API + path, {headers: authHeaders()});
-  if(!r.ok) throw new Error('HTTP '+r.status);
-  return r.json();
-}
-async function apiPost(path, body){
-  const r = await fetch(API + path, {
-    method:'POST',
-    headers: authHeaders(),
-    body: JSON.stringify(body)
-  });
-  if(!r.ok) throw new Error('HTTP '+r.status);
-  return r.json();
-}
-/* Raw POST without auth (for login/register) */
-async function apiPostRaw(path, body){
-  const r = await fetch(API + path, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(body)
-  });
-  return r.json();
-}
-
-/* ── Dynamic Record/Guild Select Population ────────────────── */
-function skillOptionsHtml(s){
-  // Generate <option> HTML from skillConfig (used inline in template strings)
-  const skills = (s && s.skillConfig && s.skillConfig.skills) || [];
-  if(skills.length > 0){
-    return skills.map(sk =>
-      `<option value="${sk.id}">${sk.icon||'⭐'} ${sk.name}</option>`
-    ).join('');
-  }
-  // Fallback to hardcoded defaults
-  return '<option value="commit">Commit 代码提交</option>'+
-    '<option value="coding">Coding 编码</option>'+
-    '<option value="vocabulary">Vocabulary 背单词</option>'+
-    '<option value="exercise">Exercise 运动</option>'+
-    '<option value="reading">Reading 阅读</option>';
-}
-
-function populateRecordTypeSelect(s){
-  const sel = document.getElementById('rec-type');
-  if(!sel) return;
-  const skills = (s.skillConfig && s.skillConfig.skills) || [];
-  if(skills.length > 0){
-    sel.innerHTML = skills.map(sk =>
-      `<option value="${sk.id}">${sk.icon||'⭐'} ${sk.name}</option>`
-    ).join('');
-  } else {
-    // Fallback to hardcoded defaults
-    sel.innerHTML =
-      '<option value="commit">Commit 代码提交</option>'+
-      '<option value="coding">Coding 编码</option>'+
-      '<option value="vocabulary">Vocabulary 背单词</option>'+
-      '<option value="exercise">Exercise 运动</option>'+
-      '<option value="reading">Reading 阅读</option>';
-  }
-}
-
-function populateGuildActionSelects(s){
-  const skills = (s.skillConfig && s.skillConfig.skills) || [];
-  const options = skills.length > 0
-    ? skills.map(sk => `<option value="${sk.id}">${sk.icon||'⭐'} ${sk.name}</option>`).join('')
-    : '<option value="commit">Commit</option><option value="coding">编码</option>'+
-      '<option value="reading">阅读</option><option value="exercise">运动</option>'+
-      '<option value="vocabulary">背单词</option>';
-  // Update both guild action selects if they exist (they may not if guild section not rendered yet)
-  const contribSel = document.getElementById('guild-contribute-type');
-  const attackSel = document.getElementById('guild-attack-type');
-  if(contribSel) contribSel.innerHTML = options;
-  if(attackSel) attackSel.innerHTML = options;
-}
-
-/* ── Cinematic Narrative Overlay ──────────────────────────── */
-let narTimer = null;
-let narCount = 0;
-
-function showNarration(title, body, sub, duration){
-  duration = duration || 4;
-  const el = document.getElementById('narrative-overlay');
-  const tEl = document.getElementById('narrative-title');
-  const bEl = document.getElementById('narrative-body');
-  const sEl = document.getElementById('narrative-sub');
-
-  // Clear previous state
-  el.classList.remove('fade-out', 'hidden-nar');
-  tEl.className = '';
-  bEl.className = '';
-  sEl.className = '';
-
-  // Set text
-  tEl.textContent = title;
-  bEl.textContent = body;
-  sEl.textContent = sub || '';
-
-  // Show
-  el.style.display = 'flex';
-  // Force reflow so animation restarts
-  void el.offsetWidth;
-  el.classList.add('show');
-  void el.offsetWidth;
-
-  // Stagger animations
-  requestAnimationFrame(() => {
-    tEl.classList.add('narrate-title-anim');
-    bEl.classList.add('narrate-body-anim');
-    sEl.classList.add('narrate-sub-anim');
-  });
-
-  // Auto-hide
-  if(narTimer) clearTimeout(narTimer);
-  narTimer = setTimeout(hideNarration, duration * 1000);
-  narCount++;
-}
-
-function hideNarration(){
-  if(narTimer) clearTimeout(narTimer);
-  narTimer = null;
-  const el = document.getElementById('narrative-overlay');
-  el.classList.remove('show');
-  el.classList.add('fade-out');
-  setTimeout(() => {
-    el.classList.add('hidden-nar');
-    el.classList.remove('fade-out');
-    document.getElementById('narrative-title').className = '';
-    document.getElementById('narrative-body').className = '';
-    document.getElementById('narrative-sub').className = '';
-  }, 600);
-}
-
-/* ── Narrative Text Pools (skill-themed atmospheric text) ── */
-const NAR = {
-  // Music skills
-  guitar: {
-    record: [
-      {t:'🎸 琴音起', b:'你的手指在琴弦间游走，音符如月光般流淌在暗影之中'},
-      {t:'🎵 和弦共鸣', b:'每一个和弦都蕴含着力量，琴声穿透了黑暗，唤醒了远古的回响'},
-      {t:'🎶 弦外之音', b:'指尖的茧是时间的勋章，每一次拨弦都比上次更加从容'},
-    ],
-    dungeon: [
-      {t:'🏰 音律神殿', b:'你推开一扇古老的木门，里面传来千年前乐师的琴声——那是暗影君主留下的试炼'},
-    ],
-    levelup: [
-      {t:'🎶 琴技突破', b:'你的指尖仿佛被赋予了灵性，一段全新的旋律自然流淌而出'},
-    ],
-  },
-  piano: {
-    record: [
-      {t:'🎹 黑白键舞', b:'黑白琴键在你指尖下奏响，每一个音符都化作金色的能量'},
-      {t:'🎵 月光奏鸣', b:'肖邦的月光在你手中重现，暗影之力随着旋律升腾'},
-    ],
-    dungeon: [
-      {t:'🏰 钢琴圣殿', b:'巨大的三角钢琴在黑暗中发光——挑战者，用你的琴技证明实力'},
-    ],
-    levelup: [
-      {t:'🎹 突破', b:'你的手指在琴键上飞舞，突破的快感如同完美的和弦'},
-    ],
-  },
-  // Coding skills
-  coding: {
-    record: [
-      {t:'💻 代码构筑', b:'指尖敲击键盘，代码如符文般在屏幕上凝结，构筑着暗影帝国的基石'},
-      {t:'⌨️ 逻辑之光', b:'每一个函数都是一道符咒，每一行代码都在重塑世界的规则'},
-      {t:'🔧 架构觉醒', b:'你看到了代码深处的结构，像暗影君主一样洞察一切'},
-    ],
-    dungeon: [
-      {t:'🏰 代码迷宫', b:'无数行代码交织成迷宫——只有最纯粹的逻辑才能找到出口'},
-    ],
-    levelup: [
-      {t:'💻 架构突破', b:'你看到了全新的代码结构，如同暗影帝国在你眼前展开'},
-    ],
-  },
-  commit: {
-    record: [
-      {t:'🔀 符文铭刻', b:'你的每一次提交都在暗影之书上添上新的符文'},
-      {t:'📦 版本之力', b:'Git 仓库深处传来回响，你的代码被永远铭刻在暗影档案中'},
-    ],
-    dungeon: [
-      {t:'🏰 提交试炼', b:'无数待提交的代码在黑暗中等待——在时限内完成你的提交'},
-    ],
-    levelup: [
-      {t:'🔀 提交大师', b:'你的每一次 commit 都让暗影帝国更加稳固'},
-    ],
-  },
-  // Learning skills
-  vocabulary: {
-    record: [
-      {t:'📚 词汇觉醒', b:'每一个单词都是一把钥匙，正在打开暗影知识的门扉'},
-      {t:'🔤 语感涌现', b:'陌生的词汇在你脑海中化为熟悉的力量，暗影语法的奥义渐显'},
-    ],
-    dungeon: [
-      {t:'🏰 单词深渊', b:'无边的词汇深渊在你脚下展开——在迷失之前记住它们'},
-    ],
-    levelup: [
-      {t:'📚 语感突破', b:'你的词汇量突破了临界点，暗影古文在你眼前清晰可见'},
-    ],
-  },
-  reading: {
-    record: [
-      {t:'📖 书页翻动', b:'古老的卷轴在你手中展开，暗影知识如泉水般涌入你的意识'},
-      {t:'📜 知识之力', b:'每一个段落都蕴藏着力量，你在字里行间找到了暗影的真相'},
-    ],
-    dungeon: [
-      {t:'🏰 阅读殿堂', b:'巨大的图书馆在你面前展开——每一本书都是一道试炼'},
-    ],
-    levelup: [
-      {t:'📖 知识突破', b:'你读懂了暗影之书最深奥的一章，知识的力量在你体内汇聚'},
-    ],
-  },
-  math: {
-    record: [
-      {t:'🔢 公式觉醒', b:'数学公式在你眼前展开，每一个定理都是暗影法则的投影'},
-      {t:'📐 逻辑之光', b:'你看到了数字背后的真理，暗影的数学之美让你屏息'},
-    ],
-    dungeon: [
-      {t:'🏰 数学迷宫', b:'几何与代数的迷宫——只有最严密的逻辑才能找到出口'},
-    ],
-    levelup: [
-      {t:'🔢 定理突破', b:'一道困扰已久的难题在你眼前豁然开朗'},
-    ],
-  },
-  english_speaking: {
-    record: [
-      {t:'🗣️ 语音觉醒', b:'你张开嘴，流利的暗影之语自然涌出，如同与生俱来的天赋'},
-      {t:'💬 对话之力', b:'每一句对话都是力量的汇聚，你的英语在暗影中回响'},
-    ],
-    dungeon: [
-      {t:'🏰 语言神殿', b:'无数语言学家在虚空中等待——用你的口语通过试炼'},
-    ],
-    levelup: [
-      {t:'🗣️ 语音突破', b:'你的英语口语突破了次元壁，流利如暗影之风'},
-    ],
-  },
-  meditation: {
-    record: [
-      {t:'🧘 正念觉醒', b:'你闭上双眼，暗影之力在冥想中汇聚，心灵的力量无限延伸'},
-      {t:'☯️ 心如止水', b:'在暗影的深处，你找到了内心的平静——力量从宁静中诞生'},
-    ],
-    dungeon: [
-      {t:'🏰 冥想殿堂', b:'古老的冥想室在你眼前展开——在暗影中找到你的内心'},
-    ],
-    levelup: [
-      {t:'🧘 冥想突破', b:'你的意识突破了暗影的束缚，进入了全新的境界'},
-    ],
-  },
-  // Physical skills
-  exercise: {
-    record: [
-      {t:'💪 体魄燃烧', b:'汗水是暗影君主的印记，每一次运动都在锻造更强的自己'},
-      {t:'🔥 力量涌动', b:'肌肉在暗影中苏醒，力量如潮水般涌遍全身'},
-      {t:'⚡ 体力突破', b:'你感受到了体内潜藏的力量正在被一点点唤醒'},
-    ],
-    dungeon: [
-      {t:'🏰 体魄试炼', b:'体能试炼场在暗影中展开——挑战你的身体极限'},
-    ],
-    levelup: [
-      {t:'💪 力量突破', b:'你的身体突破了限制，暗影之力在肌肉中奔涌'},
-    ],
-  },
-  running: {
-    record: [
-      {t:'🏃 风之步伐', b:'你的脚步在暗影中踏出，风声在耳边呼啸，速度就是力量'},
-      {t:'💨 疾风前行', b:'每一步都在超越过去的自己，暗影的风在你脚下汇聚'},
-    ],
-    dungeon: [
-      {t:'🏰 疾风试炼', b:'无限延伸的暗影跑道在你脚下——在疲惫之前到达终点'},
-    ],
-    levelup: [
-      {t:'🏃 速度突破', b:'你的速度突破了极限，暗影之风都在追赶你的脚步'},
-    ],
-  },
-  yoga: {
-    record: [
-      {t:'🧘‍♀️ 柔韧觉醒', b:'你的身体在暗影中舒展，每一个体式都在释放内在的力量'},
-      {t:'☯️ 身心合一', b:'呼吸与动作完美同步，暗影的能量在体内流转'},
-    ],
-    dungeon: [
-      {t:'🏰 瑜伽圣殿', b:'古老的瑜伽室在暗影中发光——挑战你的柔韧极限'},
-    ],
-    levelup: [
-      {t:'🧘‍♀️ 柔韧突破', b:'你的身体达到了前所未有的柔韧境界'},
-    ],
-  },
-  swimming: {
-    record: [
-      {t:'🏊 水之力', b:'你在暗影之水中穿梭，每一划都在汇聚力量'},
-      {t:'💧 流体力学', b:'水流在你身边形成完美的弧线，暗影的潮汐听从你的召唤'},
-    ],
-    dungeon: [
-      {t:'🏰 深渊水域', b:'无尽的暗影水域在你面前展开——在窒息之前完成挑战'},
-    ],
-    levelup: [
-      {t:'🏊 泳技突破', b:'你在水中如鱼得水，暗影的潮汐在你手中掌控'},
-    ],
-  },
-  cooking: {
-    record: [
-      {t:'🍳 烹饪之力', b:'火焰在暗影中升腾，每一道菜都是对味蕾的献祭'},
-      {t:'🔥 暗影厨房', b:'你掌握了暗影烹饪的奥义，食材在你手中化为艺术品'},
-    ],
-    dungeon: [
-      {t:'🏰 暗影厨房', b:'古老的厨房在暗影中等待——用你的厨艺通过试炼'},
-    ],
-    levelup: [
-      {t:'🍳 厨艺突破', b:'你的厨艺突破了暗影的限制，达到了全新的境界'},
-    ],
-  },
-  drawing: {
-    record: [
-      {t:'🎨 色彩觉醒', b:'你的画笔在暗影中舞动，每一笔都在创造新的世界'},
-      {t:'🖌️ 暗影画卷', b:'色彩在画布上绽放，暗影的画卷在你手中展开'},
-    ],
-    dungeon: [
-      {t:'🏰 暗影画廊', b:'无数画布在暗影中等待——用你的画笔完成试炼'},
-    ],
-    levelup: [
-      {t:'🎨 画技突破', b:'你的画笔突破了次元，暗影的色彩在你手中流转'},
-    ],
-  },
-  writing: {
-    record: [
-      {t:'✍️ 文字之力', b:'你的笔尖在纸上流淌，每一个字都蕴含着暗影的力量'},
-      {t:'📝 暗影笔耕', b:'文字在你笔下化为武器，暗影的故事在你手中诞生'},
-    ],
-    dungeon: [
-      {t:'🏰 暗影书房', b:'无数待写的文字在暗影中等待——用你的笔完成试炼'},
-    ],
-    levelup: [
-      {t:'✍️ 笔力突破', b:'你的文字突破了暗影的束缚，达到了全新的境界'},
-    ],
-  },
-  // Fallback for any unknown skill
-  _default: {
-    record: [
-      {t:'⚡ 暗影修炼', b:'你在暗影中修炼，力量随着每一次练习而增长'},
-      {t:'🌟 突破自我', b:'每一次坚持都让暗影之力更加凝聚，你在向着更高的境界迈进'},
-    ],
-    dungeon: [
-      {t:'🏰 修行试炼', b:'暗影试炼场在你面前展开——用你的技能通过挑战'},
-    ],
-    levelup: [
-      {t:'⬆️ 突破', b:'你感受到了暗影之力的涌动，新的境界在向你敞开'},
-    ],
-  },
-};
-
-function getSkillNarrative(skillId, action){
-  // Try exact match first, then category-based fallback, then default
-  const pool = NAR[skillId];
-  if(pool && pool[action]) return pool[action];
-  // No match found, return default
-  return NAR._default[action] || NAR._default.record;
-}
-
-function pickRandom(arr){
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-/* ── Dashboard ──────────────────────────────────────────── */
-async function loadDashboard(){
-  const s = await apiGet('/status');
-  // Populate record type select from player's skill config
-  populateRecordTypeSelect(s);
-  // Populate guild action selects from player's skill config
-  populateGuildActionSelects(s);
-  document.getElementById('header-ver').textContent = 'v' + s.version;
-  document.getElementById('header-gold').textContent = s.gold;
-  document.getElementById('header-gems').textContent = s.gems;
-  document.getElementById('header-streak').textContent = s.streak;
-
-  // Big stats
-  const statsEl = document.getElementById('dash-stats');
-  statsEl.innerHTML = `
-    <div class="card stat-big"><div class="value">LV.${s.level}</div><div class="label">等级</div></div>
-    <div class="card stat-big"><div class="value" style="color:var(--purple)">${s.title}</div><div class="label">称号</div></div>
-    <div class="card stat-big"><div class="value">${s.power}</div><div class="label">战力</div></div>
-    <div class="card stat-big"><div class="value">${s.gold}</div><div class="label">金币</div></div>
-  `;
-
-  // Bars
-  const barsEl = document.getElementById('dash-bars');
-  barsEl.innerHTML = `
-    <div class="card-title">状态条</div>
-    <div style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-        <span>HP</span><span>${s.hp}/100</span>
-      </div>
-      <div class="bar-wrap"><div class="bar-fill hp" style="width:${s.hp}%"></div></div>
+<!-- Tutorial Guide Overlay -->
+<div id="guide-overlay">
+  <div class="guide-card">
+    <button class="g-skip" onclick="skipGuide()">跳过 ✕</button>
+    <div class="g-step-dots" id="guide-dots"></div>
+    <div class="g-icon" id="guide-icon">⚔️</div>
+    <div class="g-title" id="guide-title">欢迎来到暗影世界</div>
+    <div class="g-text" id="guide-text">这里是你成长的战场，每次练习都会让你更强大。</div>
+    <div class="g-actions">
+      <button class="btn btn-primary" onclick="guideNext()">下一步</button>
     </div>
-    <div style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-        <span>MP</span><span>${s.mp}/100</span>
-      </div>
-      <div class="bar-wrap"><div class="bar-fill mp" style="width:${s.mp}%"></div></div>
-    </div>
-    <div style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-        <span>EXP</span><span>${s.exp}/${s.expToNext} (${s.expPct}%)</span>
-      </div>
-      <div class="bar-wrap"><div class="bar-fill exp" style="width:${s.expPct}%"></div></div>
-    </div>
-  `;
-
-  // Stats row
-  const rowEl = document.getElementById('dash-stats-row');
-  const stats = s.stats;
-  const names = {strength:'力量 STR',agility:'敏捷 AGI',sense:'感知 SEN',vitality:'体力 VIT',intelligence:'智力 INT'};
-  let html = '<div class="card"><h3>属性</h3>';
-  if(s.statPoints > 0) html += `<div class="text-gold mb-8">可用属性点: ${s.statPoints}</div>`;
-  for(const [k,v] of Object.entries(stats)){
-    html += `<div class="stat-row">
-      <span class="stat-label">${names[k]||k}</span>
-      <span class="stat-value">${v}</span>
-      <div class="bar-wrap stat-bar" style="height:8px"><div class="bar-fill exp" style="width:${Math.min(v*2,100)}%"></div></div>
-    </div>`;
-  }
-  html += '</div>';
-
-  html += '<div class="card"><h3>概览</h3>';
-  const overview = [
-    ['总EXP', s.totalExp], ['Commit数', s.commitCount],
-    ['士兵', s.soldierCount], ['成就', `${s.achievementCount}/${s.achievementTotal}`],
-    ['Boss击破', s.bossesDefeated], ['背包物品', s.inventoryCount],
-    ['连击', s.streak + '天'], ['COMBO', s.combo],
-  ];
-  for(const [label,val] of overview){
-    html += `<div class="stat-row"><span class="stat-label">${label}</span><span class="stat-value">${val}</span></div>`;
-  }
-  html += '</div>';
-  rowEl.innerHTML = html;
-}
-
-/* ── Tasks ──────────────────────────────────────────────── */
-async function loadTasks(){
-  const d = await apiGet('/tasks');
-  document.getElementById('task-date').textContent = d.date;
-  const list = document.getElementById('task-list');
-  if(!d.tasks.length){
-    list.innerHTML = '<div class="empty">暂无任务</div>';
-    return;
-  }
-  let html = '';
-  let completed = 0;
-  for(const t of d.tasks){
-    const cls = t.status==='completed' ? 'completed' : '';
-    if(t.status==='completed') completed++;
-    const diffColor = {E:'#6b7280',D:'#2ed573',C:'#3742fa',B:'#a855f7',A:'#ff4757',S:'#ffd700'}[t.difficulty]||'#6b7280';
-    html += `<div class="task-item ${cls}">
-      <div class="check">${t.status==='completed'?'✓':''}</div>
-      <div class="info">
-        <div class="name">${t.name}</div>
-        <div class="detail">${t.current}/${t.target}</div>
-      </div>
-      <span class="diff" style="color:${diffColor};border:1px solid ${diffColor}">${t.difficulty}</span>
-      <span class="reward">+${t.reward} EXP</span>
-    </div>`;
-  }
-  list.innerHTML = html;
-
-  const total = d.tasks.length;
-  const actions = document.getElementById('task-actions');
-  if(completed === total && total > 0){
-    actions.innerHTML = '<button class="btn btn-primary" onclick="doClaimDaily()">领取奖励</button>';
-  } else {
-    actions.innerHTML = `<span class="text-dim">进度: ${completed}/${total} | 总奖励: ${d.tasks.reduce((a,t)=>a+t.reward,0)} EXP</span>`;
-  }
-}
-
-async function doClaimDaily(){
-  const r = await apiPost('/claim-daily', {});
-  if(r.messages){
-    showNarration(
-      '🏆 每日奖励',
-      r.messages.filter(m => m.includes('升级')).join('\n') || r.messages[0] || '所有任务已完成！',
-      r.messages.join(' | '),
-      5
-    );
-  }
-  if(r.achievements) r.achievements.forEach(a => toast(`成就: ${a.name}`, 'success'));
-  loadTasks();
-  loadDashboard();
-}
-
-/* ── Actions ────────────────────────────────────────────── */
-async function doRecord(){
-  const type = document.getElementById('rec-type').value;
-  const qty = parseInt(document.getElementById('rec-qty').value) || 1;
-  const r = await apiPost('/record', {type, quantity: qty});
-  if(r.success){
-    // Get skill info for narrative (don't block if this fails)
-    let skillName = type, skillIcon = '⭐', unit = '次', lvl = 1;
-    try {
-      const s = await apiGet('/status');
-      lvl = s.level;
-      const skills = (s.skillConfig && s.skillConfig.skills) || [];
-      const skill = skills.find(sk => sk.id === type);
-      if(skill){
-        skillName = skill.name;
-        skillIcon = skill.icon || '⭐';
-        unit = skill.unit || '次';
-      }
-    } catch(e){}
-
-    if(r.levelups && r.levelups.length > 0){
-      // Level up: show cinematic narrative
-      const narTexts = getSkillNarrative(type, 'levelup');
-      const nar = pickRandom(narTexts);
-      showNarration(nar.t, nar.b, `${skillIcon} ${skillName} — 等级提升至 ${lvl} (+${r.exp} EXP)`, 5);
-    } else {
-      // Normal record: show narrative
-      const narTexts = getSkillNarrative(type, 'record');
-      const nar = pickRandom(narTexts);
-      showNarration(`${skillIcon} ${skillName}`, nar.b, `${nar.t} | +${r.exp} EXP | 完成 ${qty}${unit}练习`, 4);
-    }
-
-    if(r.achievements) r.achievements.forEach(a => toast(`成就: ${a.name}`, 'success'));
-    if(r.bossesDefeated) r.bossesDefeated.forEach(b => toast(`Boss击破: ${b.name}`, 'error'));
-    loadDashboard();
-  } else {
-    toast(r.message, 'error');
-  }
-}
-
-async function doAllocate(){
-  const stat = document.getElementById('alloc-stat').value;
-  const amt = parseInt(document.getElementById('alloc-amt').value) || 1;
-  const r = await apiPost('/allocate-stat', {stat, amount: amt});
-  if(r.success){
-    toast('属性分配成功！', 'success');
-    loadDashboard();
-  } else {
-    toast(r.message, 'error');
-  }
-}
-
-async function doSummon(){
-  const type = document.getElementById('summon-type').value || null;
-  const r = await apiPost('/summon', {type});
-  if(r.success){
-    if(r.obtained){
-      showNarration(
-        '⚔️ 暗影召唤',
-        `${r.obtained.name} 响应了你的召唤，从暗影中现身`,
-        `LV.${r.obtained.level} [${r.obtained.type}] — 你的军队又壮大了一分`,
-        4
-      );
-    } else {
-      showNarration(
-        '🌌 虚空回响',
-        '虚空中传来回音，但无人回应……也许下次会有不同的结果',
-        '再次尝试吧',
-        3
-      );
-    }
-    loadDashboard();
-  } else {
-    toast(r.message, 'error');
-  }
-}
-
-async function doLegion(scale){
-  const r = await apiPost('/legion', {scale});
-  if(r.success){
-    toast(r.message, r.soldiers_obtained > 0 ? 'levelup' : 'info');
-    loadDashboard();
-  } else {
-    toast(r.message, 'error');
-  }
-}
-
-async function doScanGit(){
-  const r = await apiPost('/scan-git', {});
-  if(r.success){
-    toast(r.message, 'success');
-    loadDashboard();
-  } else {
-    toast(r.message, 'error');
-  }
-}
-
-async function doScanFiles(){
-  const r = await apiPost('/scan-files', {});
-  if(r.success){
-    toast(r.message, 'success');
-    loadDashboard();
-  } else {
-    toast(r.message, 'error');
-  }
-}
-
-/* ── Achievements ───────────────────────────────────────── */
-async function loadAchievements(){
-  const d = await apiGet('/achievements');
-  const list = document.getElementById('ach-list');
-  let html = '';
-  for(const a of d.achievements){
-    const cls = a.unlocked ? 'unlocked' : 'locked';
-    const icon = a.unlocked ? '🏆' : '🔒';
-    html += `<div class="ach-card ${cls}">
-      <div class="icon">${icon}</div>
-      <div class="name">${a.name}</div>
-      <div class="desc">${a.description}</div>
-      <div class="reward">+${a.reward_exp} EXP, +${a.reward_gold} 金币</div>
-    </div>`;
-  }
-  list.innerHTML = html;
-}
-
-/* ── Shop ───────────────────────────────────────────────── */
-async function loadShop(){
-  const cat = document.getElementById('shop-cat').value;
-  const d = await apiGet('/shop' + (cat ? '?category=' + cat : ''));
-  document.getElementById('header-gold').textContent = d.gold;
-  const list = document.getElementById('shop-list');
-  if(!d.items.length){
-    list.innerHTML = '<div class="empty">暂无商品 (提高等级解锁)</div>';
-    return;
-  }
-  const catNames = {consumable:'消耗品',equipment:'装备',appearance:'外观',functional:'功能'};
-  let currentCat = null, html = '';
-  for(const item of d.items){
-    if(item.category !== currentCat){
-      currentCat = item.category;
-      html += `<div class="card-title mt-16">${catNames[currentCat]||currentCat}</div>`;
-    }
-    const icon = {consumable:'🧪',equipment:'⚔️',appearance:'👑',functional:'⚙️'}[item.category]||'📦';
-    const req = item.level_requirement > 1 ? `<span class="s-req">LV.${item.level_requirement}</span>` : '';
-    html += `<div class="shop-item">
-      <div class="s-icon">${icon}</div>
-      <div class="s-info">
-        <div class="s-name">${item.name} ${req}</div>
-        <div class="s-desc">${item.description}</div>
-      </div>
-      <div class="s-price">${item.price} 金币</div>
-      <button class="btn btn-sm btn-primary" onclick="doBuy('${item.id}')">购买</button>
-    </div>`;
-  }
-  list.innerHTML = html;
-}
-
-async function doBuy(id){
-  const r = await apiPost('/buy', {id});
-  if(r.success){
-    toast(r.message, 'success');
-    loadShop();
-    loadDashboard();
-  } else {
-    toast(r.message, 'error');
-  }
-}
-
-/* ── Army ───────────────────────────────────────────────── */
-async function loadArmy(){
-  const d = await apiGet('/army');
-  const list = document.getElementById('army-list');
-  if(!d.soldiers.length){
-    list.innerHTML = '<div class="empty">暂无士兵 (使用快捷操作召唤)</div>';
-    return;
-  }
-  let html = '';
-  for(let i = 0; i < d.soldiers.length; i++){
-    const s = d.soldiers[i];
-    html += `<div class="task-item">
-      <div class="check" style="background:var(--purple);border:none">${i+1}</div>
-      <div class="info">
-        <div class="name">${s.name}</div>
-        <div class="detail">LV.${s.level} [${s.type}]</div>
-      </div>
-      <span class="text-dim">${s.obtainedAt||''}</span>
-    </div>`;
-  }
-  list.innerHTML = html;
-}
-
-/* ── Dungeons ───────────────────────────────────────────── */
-async function loadDungeons(){
-  const d = await apiGet('/dungeons');
-  const list = document.getElementById('dungeon-list');
-  if(!d.dungeons.length){
-    list.innerHTML = '<div class="empty">暂无可用副本</div>';
-    return;
-  }
-  let html = '';
-  for(const dg of d.dungeons){
-    const typeIcon = {daily:'📅',weekly:'🔄',boss:'💀'}[dg.type]||'📋';
-    html += `<div class="card">
-      <div style="display:flex;align-items:center;gap:12px">
-        <span style="font-size:28px">${typeIcon}</span>
-        <div style="flex:1">
-          <div style="font-size:16px;font-weight:700">${dg.name}</div>
-          <div class="text-dim">${dg.description} (${dg.type})</div>
-        </div>
-        <button class="btn btn-primary" onclick="doEnterDungeon('${dg.id}')">进入</button>
-      </div>
-      <div class="btn-group">
-        ${dg.tasks.map(t => `<span class="text-dim">${t.name} (${t.type} x${t.target})</span>`).join(' · ')}
-      </div>
-    </div>`;
-  }
-  list.innerHTML = html;
-}
-
-async function doEnterDungeon(id){
-  const r = await apiPost('/enter-dungeon', {id});
-  if(r.success){
-    const inst = r.instance;
-    // Show cinematic narrative for dungeon entry
-    const taskNames = inst.tasks.map(t => t.name).join('、');
-    showNarration(
-      `🏰 ${inst.dungeon_name}`,
-      `难度 ${inst.difficulty} — 挑战 ${inst.tasks.length} 项任务`,
-      `${taskNames} | 总奖励 ${inst.total_reward} EXP | +${r.entry_exp} EXP (入场)`,
-      5
-    );
-    loadDashboard();
-  } else {
-    toast(r.message, 'error');
-  }
-}
-
-/* ── Bosses ─────────────────────────────────────────────── */
-async function loadBosses(){
-  const d = await apiGet('/bosses');
-  const list = document.getElementById('boss-list');
-  if(!d.bosses.length){
-    list.innerHTML = '<div class="empty">暂无可挑战 Boss (需要 LV.10+)</div>';
-    return;
-  }
-  let html = '';
-  for(const b of d.bosses){
-    const cls = b.defeated ? 'defeated' : '';
-    const icon = b.defeated ? '✅' : '💀';
-    html += `<div class="boss-card ${cls}">
-      <div class="b-icon">${icon}</div>
-      <div class="b-info">
-        <div class="b-name">${b.name}</div>
-        <div class="b-desc">${b.description}</div>
-        <div class="b-reward">奖励: ${b.reward_exp} EXP, ${b.reward_gold} 金币</div>
-      </div>
-      <div style="text-align:center">
-        <div class="text-dim" style="font-size:11px">HP</div>
-        <div style="font-size:20px;font-weight:700;color:var(--red)">${b.hp}</div>
-      </div>
-    </div>`;
-  }
-  list.innerHTML = html;
-}
-
-/* ── Integrations ───────────────────────────────────────── */
-async function loadIntegrations(){
-  const d = await apiGet('/integrations');
-  const statusEl = document.getElementById('int-status');
-  statusEl.innerHTML = `
-    <h3>集成状态</h3>
-    <div class="int-row">
-      <div class="int-icon">🏃</div>
-      <div class="int-info"><div class="int-name">健康数据</div><div class="int-desc">步数/运动/睡眠 → EXP</div></div>
-      <span class="int-status ${d.healthEnabled?'on':'off'}">${d.healthEnabled?'已启用':'已停用'}</span>
-      <button class="btn btn-sm" onclick="toggleInt('health',${!d.healthEnabled})">${d.healthEnabled?'停用':'启用'}</button>
-    </div>
-    <div class="int-row">
-      <div class="int-icon">📖</div>
-      <div class="int-info"><div class="int-name">阅读数据</div><div class="int-desc">阅读时长/页数 → EXP</div></div>
-      <span class="int-status ${d.readingEnabled?'on':'off'}">${d.readingEnabled?'已启用':'已停用'}</span>
-      <button class="btn btn-sm" onclick="toggleInt('reading',${!d.readingEnabled})">${d.readingEnabled?'停用':'启用'}</button>
-    </div>
-    <div class="int-row">
-      <div class="int-icon">🌐</div>
-      <div class="int-info"><div class="int-name">浏览器活动</div><div class="int-desc">学习时长 → EXP</div></div>
-      <span class="int-status ${d.browserEnabled?'on':'off'}">${d.browserEnabled?'已启用':'已停用'}</span>
-      <button class="btn btn-sm" onclick="toggleInt('browser',${!d.browserEnabled})">${d.browserEnabled?'停用':'启用'}</button>
-    </div>
-    <div class="text-dim mt-12">总导入次数: ${d.totalImports}</div>
-  `;
-
-  const actionsEl = document.getElementById('int-actions');
-  actionsEl.innerHTML = `
-    <div class="card">
-      <h3>🏃 记录健康</h3>
-      <div class="input-row"><label>步数</label><input type="number" id="h-steps" value="0" style="width:80px"></div>
-      <div class="input-row"><label>运动</label><input type="number" id="h-exercise" value="0" style="width:80px"> <span class="text-dim" style="font-size:12px">分钟</span></div>
-      <div class="input-row"><label>睡眠</label><input type="number" id="h-sleep" value="0" step="0.5" style="width:80px"> <span class="text-dim" style="font-size:12px">小时</span></div>
-      <button class="btn btn-primary" onclick="doHealth()">记录</button>
-    </div>
-    <div class="card">
-      <h3>📖 记录阅读</h3>
-      <div class="input-row"><label>时长</label><input type="number" id="r-minutes" value="0" style="width:80px"> <span class="text-dim" style="font-size:12px">分钟</span></div>
-      <div class="input-row"><label>页数</label><input type="number" id="r-pages" value="0" style="width:80px"></div>
-      <div class="input-row"><label>书名</label><input type="text" id="r-book" value="" style="width:120px"></div>
-      <button class="btn btn-primary" onclick="doReading()">记录</button>
-    </div>
-    <div class="card">
-      <h3>🌐 记录浏览器</h3>
-      <div class="input-row"><label>网站</label><input type="text" id="b-site" value="leetcode.com" style="width:120px"></div>
-      <div class="input-row"><label>时长</label><input type="number" id="b-minutes" value="30" style="width:80px"> <span class="text-dim" style="font-size:12px">分钟</span></div>
-      <button class="btn btn-primary" onclick="doBrowser()">记录</button>
-    </div>
-  `;
-}
-
-async function toggleInt(type, enable){
-  const r = await apiPost('/integrations/' + (enable ? 'enable' : 'disable'), {target: type});
-  toast(r.message, r.success ? 'success' : 'error');
-  if(r.success) loadIntegrations();
-}
-
-async function doHealth(){
-  const steps = parseInt(document.getElementById('h-steps').value)||0;
-  const exercise = parseInt(document.getElementById('h-exercise').value)||0;
-  const sleep = parseFloat(document.getElementById('h-sleep').value)||0;
-  const r = await apiPost('/health', {steps, exercise_min: exercise, sleep_hours: sleep});
-  if(r.success){
-    toast(`+${r.total_exp} EXP`, 'success');
-    loadDashboard();
-  } else {
-    toast(r.message, 'error');
-  }
-}
-
-async function doReading(){
-  const minutes = parseInt(document.getElementById('r-minutes').value)||0;
-  const pages = parseInt(document.getElementById('r-pages').value)||0;
-  const book = document.getElementById('r-book').value;
-  const r = await apiPost('/reading', {minutes, pages, book});
-  if(r.success){
-    toast(`+${r.total_exp} EXP`, 'success');
-    loadDashboard();
-  } else {
-    toast(r.message, 'error');
-  }
-}
-
-async function doBrowser(){
-  const site = document.getElementById('b-site').value;
-  const minutes = parseInt(document.getElementById('b-minutes').value)||0;
-  const r = await apiPost('/browser', {site, minutes});
-  if(r.success){
-    toast(`+${r.total_exp} EXP`, 'success');
-    loadDashboard();
-  } else {
-    toast(r.message, 'error');
-  }
-}
-
-/* ── Guild System ───────────────────────────────────────── */
-async function loadGuild(){
-  if(!isLoggedIn()){ loadGuildJoinPanel(); return; }
-
-  // Check if user is in a guild
-  const my = await apiPost('/guilds/my', {});
-  const statusEl = document.getElementById('guild-status');
-  const detailEl = document.getElementById('guild-detail');
-  const joinEl = document.getElementById('guild-join-panel');
-  const rankEl = document.getElementById('guild-rankings');
-
-  if(my.success && my.id){
-    // User is in a guild — show detail
-    statusEl.innerHTML = `<div class="guild-header">
-      <h2>${my.name}</h2>
-      <span class="guild-badge member">${my.rank}</span>
-      <span class="text-dim">${my.memberCount} 人 | 贡献 ${my.contribution}</span>
-    </div>`;
-    joinEl.innerHTML = '';
-    rankEl.innerHTML = '';
-    loadGuildDetail(my);
-  } else {
-    // Not in a guild — show create/join + rankings
-    statusEl.innerHTML = '';
-    detailEl.innerHTML = '';
-    loadGuildJoinPanel();
-    loadGuildRankings();
-  }
-}
-
-async function loadGuildJoinPanel(){
-  const el = document.getElementById('guild-join-panel');
-  const d = await apiGet('/guilds');
-  let html = '<div class="card"><h3>创建公会</h3><div class="input-row"><input type="text" id="create-guild-name" placeholder="公会名称" style="width:200px"><button class="btn btn-primary" onclick="doCreateGuild()">创建</button></div></div>';
-  html += '<div class="card"><h3>加入公会</h3><div class="input-row"><input type="text" id="join-guild-id" placeholder="公会ID" style="width:150px"><button class="btn btn-primary" onclick="doJoinGuild()">加入</button></div></div>';
-
-  if(d.guilds && d.guilds.length){
-    html += '<div class="card"><h3>公会列表</h3>';
-    for(const g of d.guilds){
-      html += `<div class="guild-card">
-        <div class="g-rank">${g.rank}</div>
-        <div class="g-name">${g.name}</div>
-        <div class="g-info">${g.members}/${g.maxMembers} 人 | 贡献: ${g.contribution}</div>
-        <button class="btn btn-sm" onclick="document.getElementById('join-guild-id').value='${g.id}';doJoinGuild()">加入</button>
-      </div>`;
-    }
-    html += '</div>';
-  }
-  el.innerHTML = html;
-}
-
-async function loadGuildDetail(my){
-  const el = document.getElementById('guild-detail');
-  const info = await apiPost('/guilds/info', {guildId: my.id});
-
-  // Active task
-  let taskHtml = '';
-  if(my.activeTask){
-    const t = my.activeTask;
-    const pct = Math.min(100, Math.round(t.current / t.target * 100));
-    taskHtml = `<div class="card"><h3>公会任务: ${t.name}</h3>
-      <div class="text-dim">${t.desc}</div>
-      <div class="guild-task-bar"><div class="guild-task-fill" style="width:${pct}%">${t.current}/${t.target}</div></div>
-      <div class="input-row" style="margin-top:8px">
-        <label>贡献</label>
-        <select id="guild-contribute-type">
-          ${skillOptionsHtml(s)}
-        </select>
-        <input type="number" id="guild-contribute-qty" value="1" min="1" style="width:80px">
-        <button class="btn btn-primary" onclick="doGuildContribute()">贡献</button>
-      </div>
-    </div>`;
-  } else {
-    taskHtml = `<div class="card"><h3>公会任务</h3>
-      <div class="text-dim">当前无进行中的任务</div>
-      <button class="btn btn-primary" onclick="doStartGuildTask()">开启新任务</button>
-    </div>`;
-  }
-
-  // Active boss
-  let bossHtml = '';
-  if(my.activeBoss){
-    const b = my.activeBoss;
-    const pct = Math.max(0, Math.round(b.currentHp / b.maxHp * 100));
-    bossHtml = `<div class="card" style="border-color:var(--red)">
-      <h3 style="color:var(--red)">⚔️ Boss 战: ${b.name}</h3>
-      <div class="guild-boss-hp"><div class="guild-boss-fill" style="width:${pct}%">${b.currentHp}/${b.maxHp}</div></div>
-      <div class="input-row" style="margin-top:8px">
-        <label>攻击</label>
-        <select id="guild-attack-type">
-          ${skillOptionsHtml(s)}
-        </select>
-        <input type="number" id="guild-attack-qty" value="1" min="1" style="width:80px">
-        <button class="btn btn-primary" style="border-color:var(--red);color:var(--red)" onclick="doGuildDealDamage()">攻击</button>
-      </div>
-    </div>`;
-  } else {
-    bossHtml = `<div class="card"><h3>Boss 战</h3>
-      <div class="text-dim">当前无 Boss 战</div>
-      <button class="btn btn-primary" style="border-color:var(--red);color:var(--red)" onclick="doStartGuildBattle()">发起 Boss 战</button>
-    </div>`;
-  }
-
-  // Members
-  let membersHtml = '<div class="card"><h3>成员列表 (' + my.memberCount + '/' + (my.maxMembers || 20) + ')</h3>';
-  for(const m of my.members){
-    const roleClass = m.role;
-    const roleName = {leader:'👑 领袖',officer:'⭐ 副手',member:'成员'}[m.role]||m.role;
-    membersHtml += `<div class="guild-member">
-      <span class="role ${roleClass}">${roleName}</span>
-      <span class="m-info">${m.username}</span>
-      <span class="m-contrib">贡献: ${m.contribution||0}</span>
-      ${my.id && info && info.leader === info.members.find(x=>x.username===my.id)?.username ?
-        `<span class="m-actions">
-          ${m.role!=='leader'?`<button class="btn btn-sm" onclick="doPromoteMember('${m.username}')">副手</button>`:''}
-          ${m.role!=='leader'?`<button class="btn btn-sm btn-danger" onclick="doKickMember('${m.username}')">踢出</button>`:''}
-        </span>` : ''}
-    </div>`;
-  }
-  membersHtml += '</div>';
-
-  // Logs
-  let logsHtml = '';
-  if(info && info.logs && info.logs.length){
-    logsHtml = '<div class="card"><h3>最近动态</h3>';
-    for(const l of info.logs.slice(-10).reverse()){
-      const time = new Date(l.timestamp).toLocaleString('zh-CN');
-      logsHtml += `<div class="guild-log"><span class="time">${time}</span>${l.message}</div>`;
-    }
-    logsHtml += '</div>';
-  }
-
-  // Actions
-  let actionsHtml = `<div class="btn-group">
-    <button class="btn btn-primary" onclick="doLeaveGuild()">离开公会</button>
-  </div>`;
-
-  el.innerHTML = taskHtml + bossHtml + membersHtml + logsHtml + actionsHtml;
-}
-
-async function doCreateGuild(){
-  const name = document.getElementById('create-guild-name').value.trim();
-  if(!name){ toast('请输入公会名称','error'); return; }
-  const r = await apiPost('/guilds/create', {name});
-  toast(r.message, r.success ? 'success' : 'error');
-  if(r.success) loadGuild();
-}
-
-async function doJoinGuild(){
-  const id = document.getElementById('join-guild-id').value.trim();
-  if(!id){ toast('请输入公会ID','error'); return; }
-  const r = await apiPost('/guilds/join', {guildId: id});
-  toast(r.message, r.success ? 'success' : 'error');
-  if(r.success) loadGuild();
-}
-
-async function doLeaveGuild(){
-  if(!confirm('确定离开公会？')) return;
-  const my = await apiPost('/guilds/my', {});
-  if(!my.success) return;
-  const r = await apiPost('/guilds/leave', {guildId: my.id});
-  toast(r.message, r.success ? 'success' : 'error');
-  if(r.success) loadGuild();
-}
-
-async function doStartGuildTask(){
-  const my = await apiPost('/guilds/my', {});
-  if(!my.success) return;
-  const r = await apiPost('/guilds/start-task', {guildId: my.id});
-  toast(r.message, r.success ? 'success' : 'error');
-  if(r.success) loadGuild();
-}
-
-async function doGuildContribute(){
-  const my = await apiPost('/guilds/my', {});
-  if(!my.success) return;
-  const type = document.getElementById('guild-contribute-type').value;
-  const qty = parseInt(document.getElementById('guild-contribute-qty').value)||1;
-  const r = await apiPost('/guilds/contribute', {guildId: my.id, actionType: type, quantity: qty});
-  toast(r.message || `贡献: ${r.progress}/${r.target}`, r.completed ? 'levelup' : 'success');
-  if(r.rewards){
-    for(const [u, rw] of Object.entries(r.rewards)){
-      toast(`${u}: +${rw.exp} EXP, +${rw.gold} 金币`, 'success');
-    }
-  }
-  loadGuild();
-}
-
-async function doStartGuildBattle(){
-  const my = await apiPost('/guilds/my', {});
-  if(!my.success) return;
-  const r = await apiPost('/guilds/start-battle', {guildId: my.id});
-  toast(r.message, r.success ? 'success' : 'error');
-  if(r.success) loadGuild();
-}
-
-async function doGuildDealDamage(){
-  const my = await apiPost('/guilds/my', {});
-  if(!my.success) return;
-  const type = document.getElementById('guild-attack-type').value;
-  const qty = parseInt(document.getElementById('guild-attack-qty').value)||1;
-  const r = await apiPost('/guilds/deal-damage', {guildId: my.id, actionType: type, quantity: qty});
-  toast(r.message || `造成 ${r.damage} 伤害 (HP: ${r.bossHp}/${r.bossMaxHp})`, r.defeated ? 'levelup' : 'success');
-  if(r.rewards){
-    for(const [u, rw] of Object.entries(r.rewards)){
-      toast(`${u}: +${rw.exp} EXP, +${rw.gold} 金币`, 'success');
-    }
-  }
-  loadGuild();
-}
-
-async function doPromoteMember(username){
-  if(!confirm(`任命 ${username} 为副手？`)) return;
-  const my = await apiPost('/guilds/my', {});
-  if(!my.success) return;
-  const r = await apiPost('/guilds/promote', {guildId: my.id, target: username});
-  toast(r.message, r.success ? 'success' : 'error');
-  if(r.success) loadGuild();
-}
-
-async function doKickMember(username){
-  if(!confirm(`踢出 ${username}？`)) return;
-  const my = await apiPost('/guilds/my', {});
-  if(!my.success) return;
-  const r = await apiPost('/guilds/kick', {guildId: my.id, target: username});
-  toast(r.message, r.success ? 'success' : 'error');
-  if(r.success) loadGuild();
-}
-
-async function loadGuildRankings(){
-  const el = document.getElementById('guild-rankings');
-  const d = await apiGet('/guilds/rankings');
-  if(!d.rankings || !d.rankings.length){
-    el.innerHTML = '<div class="card"><div class="empty">暂无公会</div></div>';
-    return;
-  }
-  let html = '<div class="card"><h3>公会排行榜</h3>';
-  for(let i = 0; i < d.rankings.length; i++){
-    const g = d.rankings[i];
-    const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
-    html += `<div class="guild-card">
-      <span style="font-size:18px;width:24px">${medal||'#'+(i+1)}</span>
-      <div class="g-rank">${g.rank}</div>
-      <div class="g-name">${g.name}</div>
-      <div class="g-info">${g.members} 人 | 贡献: ${g.contribution}</div>
-    </div>`;
-  }
-  html += '</div>';
-  el.innerHTML = html;
-}
-
-/* ── Analytics ────────────────────────────────────────────── */
-function barChart(pct){
-  const w = 30;
-  const filled = Math.round(pct / 100 * w);
-  const empty = w - filled;
-  return '<span style="color:var(--green)">' + '█'.repeat(filled) + '</span>' + '<span style="color:var(--border)">' + '░'.repeat(empty) + '</span>';
-}
-
-async function loadAnalytics(){
-  // Weekly report
-  const weekly = await apiGet('/analytics/weekly');
-  const dailyNames = {1:'周一',2:'周二',3:'周三',4:'周四',5:'周五',6:'周六',0:'周日'};
-  let chartHtml = '';
-  const maxExp = Math.max(1, ...weekly.daily_data.map(d => d.exp));
-  for(const d of weekly.daily_data){
-    const dDate = new Date(d.date + 'T00:00:00');
-    const dayName = dailyNames[dDate.getDay()] || '';
-    const pct = Math.round(d.exp / maxExp * 100);
-    chartHtml += `<div class="stat-row"><span class="stat-label">${dayName||d.date}</span><span class="stat-value">${d.exp} EXP</span><div class="bar-wrap stat-bar" style="height:12px;flex:1"><div class="bar-fill exp" style="width:${pct}%"></div></div></div>`;
-  }
-  const trendIcon = weekly.trend==='up'?'📈':weekly.trend==='down'?'📉':'➡️';
-  const trendLabel = weekly.trend==='up'?'上升':weekly.trend==='down'?'下降':'稳定';
-  document.getElementById('analytics-weekly').innerHTML = `
-    <h3>📊 本周周报</h3>
-    <div class="grid-3" style="margin-bottom:12px">
-      <div class="stat-big"><div class="value">${weekly.total_exp}</div><div class="label">总 EXP</div></div>
-      <div class="stat-big"><div class="value" style="color:var(--orange)">${weekly.total_gold}</div><div class="label">总金币</div></div>
-      <div class="stat-big"><div class="value" style="color:var(--cyan)">${weekly.days_active}/7</div><div class="label">活跃天数</div></div>
-    </div>
-    <div style="font-size:13px;margin-bottom:8px">趋势: ${trendIcon} ${trendLabel} | 日均: ${weekly.avg_daily_exp} EXP</div>
-    ${chartHtml}
-  `;
-
-  // Insights
-  const insights = await apiGet('/analytics/insights');
-  let insHtml = '<h3>🔮 数据洞察</h3>';
-  if(insights.insights && insights.insights.length){
-    for(let i = 0; i < Math.min(insights.insights.length, 6); i++){
-      insHtml += `<div class="task-item" style="margin-bottom:4px"><div class="info"><div class="name">${i+1}. ${insights.insights[i]}</div></div></div>`;
-    }
-  } else {
-    insHtml += '<div class="text-dim">暂无洞察数据 — 先记录一些活动吧！</div>';
-  }
-  document.getElementById('analytics-insights').innerHTML = insHtml;
-
-  // Streak
-  const streak = await apiGet('/analytics/streak');
-  document.getElementById('analytics-streak').innerHTML = `
-    <h3>⚡ 连击历史</h3>
-    <div class="grid-2" style="margin-bottom:12px">
-      <div class="stat-big"><div class="value">${streak.current_streak}</div><div class="label">当前连击(天)</div></div>
-      <div class="stat-big"><div class="value" style="color:var(--purple)">${streak.best_streak}</div><div class="label">最佳连击(天)</div></div>
-    </div>
-    <div class="stat-row"><span class="stat-label">活跃天数</span><span class="stat-value">${streak.active_days}/${streak.days_since_created}</span></div>
-    <div class="bar-wrap" style="margin-top:8px"><div class="bar-fill exp" style="width:${streak.completion_rate}%"></div></div>
-    <div class="text-dim" style="font-size:12px;margin-top:4px">完成率: ${streak.completion_rate}%</div>
-  `;
-
-  // Breakdown
-  const breakdown = await apiGet('/analytics/breakdown');
-  let breakHtml = '<h3>📊 最近30天活动分布</h3>';
-  if(breakdown.types && breakdown.types.length){
-    const maxTotalExp = Math.max(1, ...breakdown.types.map(t => t.total_exp));
-    for(const t of breakdown.types){
-      const pct = Math.round(t.total_exp / maxTotalExp * 100);
-      breakHtml += `<div class="stat-row">
-        <span class="stat-label">${t.type}</span>
-        <span class="stat-value">${t.total_exp} EXP (${t.days_active}天, 日均${t.avg_per_day})</span>
-        <div class="bar-wrap stat-bar" style="height:12px;flex:1"><div class="bar-fill exp" style="width:${pct}%"></div></div>
-      </div>`;
-    }
-  } else {
-    breakHtml += '<div class="text-dim">暂无活动数据</div>';
-  }
-  document.getElementById('analytics-breakdown').innerHTML = breakHtml;
-}
-
-/* ── SSE Event Feed ─────────────────────────────────────── */
-let eventSource = null;
-function connectSSE(){
-  try {
-  if(eventSource){ eventSource.close(); eventSource = null; }
-  const t = getToken();
-  if(!t) return;
-
-  // Create a custom SSE connection with auth
-  const evtSource = new EventSource(API + '/events');
-  eventSource = evtSource;
-  const feedEl = document.getElementById('event-feed');
-
-  // Show feed on hover or toggle (auto-show on mobile)
-  feedEl.classList.add('visible');
-  setTimeout(() => { if(eventSource === evtSource) feedEl.classList.remove('visible'); }, 10000);
-
-  // Generic listener for all event types
-  const eventTypes = ['level_up','achievement','activity','daily_complete',
-    'guild_task_progress','guild_task_complete','guild_battle_start',
-    'guild_battle_damage','guild_battle_victory'];
-
-  for(const type of eventTypes){
-    // Since EventSource maps event types to custom events, we listen to all
-  }
-
-  // Listen for any SSE event
-  evtSource.addEventListener('message', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      const div = document.createElement('div');
-      div.className = 'evt';
-      div.innerHTML = `<span class="evt-type">${e.type||'event'}</span><span class="evt-data">${JSON.stringify(data).substring(0,120)}</span>`;
-      feedEl.prepend(div);
-      // Keep only last 50 events
-      while(feedEl.children.length > 50) feedEl.removeChild(feedEl.lastChild);
-      feedEl.classList.add('visible');
-      setTimeout(() => feedEl.classList.remove('visible'), 5000);
-    } catch(err) {}
-  });
-
-  evtSource.onerror = () => {
-    evtSource.close();
-    eventSource = null;
-    // Reconnect after 5s
-    setTimeout(connectSSE, 5000);
-  };
-  } catch(e) { console.warn('connectSSE failed:', e); }
-}
-
-/* ── Onboarding ───────────────────────────────────────────── */
-let obState = { step: 1, rawSkills: [], generatedConfigs: [], presetName: null };
-
-function showOnboard(show){
-  document.getElementById('onboard-overlay').classList.toggle('hidden', !show);
-}
-
-async function checkOnboarding(){
-  try {
-    const r = await apiGet('/onboard/status');
-    if(r.onboarded){
-      showOnboard(false);
-      loadDashboard();
-    } else {
-      showOnboard(true);
-      showOnboardStep(1);
-      await loadPresets();
-    }
-  } catch(e){
-    // Fallback: proceed to dashboard
-    showOnboard(false);
-    loadDashboard();
-  }
-}
-
-async function loadPresets(){
-  try {
-    const r = await apiGet('/onboard/presets');
-    const grid = document.getElementById('preset-grid');
-    grid.innerHTML = (r.presets||[]).map(p =>
-      `<div class="preset-card" onclick="obSelectPreset('${p.id}')">
-        <div class="pname">${p.name}</div>
-        <div class="pdesc">${p.description}</div>
-      </div>`
-    ).join('');
-  } catch(e){}
-}
-
-function obSelectPreset(id){
-  obState.presetName = id;
-  obState.rawSkills = [];
-  obNext();
-}
-
-function obAddSkill(){
-  const input = document.getElementById('ob-skill-input');
-  const val = input.value.trim();
-  if(!val || obState.rawSkills.includes(val)) return;
-  obState.rawSkills.push(val);
-  input.value = '';
-  renderObTags();
-}
-
-function obRemoveSkill(i){
-  obState.rawSkills.splice(i, 1);
-  renderObTags();
-}
-
-function renderObTags(){
-  const el = document.getElementById('ob-skill-tags');
-  el.innerHTML = obState.rawSkills.map((s,i) =>
-    `<div class="skill-tag">${s} <span class="remove" onclick="obRemoveSkill(${i})">×</span></div>`
-  ).join('');
-}
-
-function showOnboardStep(n){
-  obState.step = n;
-  document.getElementById('ob-step1').style.display = n===1 ? '' : 'none';
-  document.getElementById('ob-step2').style.display = n===2 ? '' : 'none';
-  document.getElementById('ob-step3').style.display = n===3 ? '' : 'none';
-  document.getElementById('ob-prev').style.display = n>1 ? '' : 'none';
-  document.getElementById('ob-next').style.display = n<3 ? '' : 'none';
-  // Update step indicators
-  for(let i=1;i<=3;i++){
-    const el = document.getElementById('os-'+i);
-    el.className = 'onboard-step';
-    if(i<n) el.classList.add('done');
-    if(i===n) el.classList.add('active');
-  }
-}
-
-async function obNext(){
-  if(obState.step === 1){
-    // Check: need at least 1 skill (preset or custom)
-    if(!obState.presetName && obState.rawSkills.length === 0){
-      alert('请选择一个预设套餐或至少添加一个自定义技能');
-      return;
-    }
-    showOnboardStep(2);
-    document.getElementById('ob-config-loading').style.display = '';
-    document.getElementById('ob-config-list').innerHTML = '';
-    // Generate configs
-    try {
-      let body;
-      if(obState.presetName){
-        body = { preset: obState.presetName };
-      } else {
-        body = { descriptions: obState.rawSkills };
-      }
-      const r = await apiPost('/onboard/configure', body);
-      obState.generatedConfigs = r.configs || [];
-      obState.presetName = r.preset_name || obState.presetName;
-    } catch(e){
-      obState.generatedConfigs = [];
-      document.getElementById('ob-config-loading').innerHTML =
-        '<span style="color:var(--red)">⚠️ 加载失败: ' + e.message + '</span><br><span style="font-size:12px;color:var(--dim)">请返回重试，或选择已添加的技能标签</span>';
-    }
-    renderObConfigs();
-    document.getElementById('ob-config-loading').style.display = obState.generatedConfigs.length > 0 ? 'none' : '';
-  } else if(obState.step === 2){
-    // Save configs
-    const configs = getEditedConfigs();
-    try {
-      const r = await apiPost('/onboard/save', {
-        skills: configs,
-        template_used: obState.presetName,
-      });
-      if(r.success){
-        document.getElementById('ob-complete-msg').textContent =
-          `已配置 ${configs.length} 项技能，开始你的成长之旅吧！`;
-        showOnboardStep(3);
-      }
-    } catch(e){}
-  }
-}
-
-function obPrev(){
-  if(obState.step > 1) showOnboardStep(obState.step - 1);
-}
-
-function obFinish(){
-  showOnboard(false);
-  loadDashboard();
-}
-
-function obSkip(){
-  // Mark as onboarded with no skills (user can configure later)
-  try { apiPost('/onboard/save', { skills: [], template_used: 'skipped' }); } catch(e){}
-  showOnboard(false);
-  loadDashboard();
-}
-
-function renderObConfigs(){
-  const list = document.getElementById('ob-config-list');
-  list.innerHTML = obState.generatedConfigs.map((c, i) =>
-    `<div class="config-item" data-idx="${i}">
-      <div class="c-icon">${c.icon||'⭐'}</div>
-      <div>
-        <div class="c-name">${c.name||c.id}</div>
-        <div class="c-detail">${c.category||'其他'} · 每${c.unit||'次'}+${c.exp_per_unit||0} EXP · 每日上限${c.daily_cap||0} · 目标${c.daily_target||0}${c.unit||'次'}</div>
-      </div>
-      <button class="c-remove" onclick="obRemoveConfig(${i})">移除</button>
-    </div>`
-  ).join('');
-}
-
-function obRemoveConfig(i){
-  obState.generatedConfigs.splice(i, 1);
-  renderObConfigs();
-}
-
-function getEditedConfigs(){
-  return obState.generatedConfigs.map((c, i) => {
-    // For now, return as-is. Could add inline editing later.
-    return {
-      id: c.id,
-      name: c.name,
-      category: c.category,
-      unit: c.unit,
-      icon: c.icon,
-      exp_formula: c.exp_formula || 'linear',
-      exp_per_unit: c.exp_per_unit,
-      daily_cap: c.daily_cap,
-      daily_target: c.daily_target,
-    };
-  });
-}
-
-/* ── Init ───────────────────────────────────────────────── */
-if(isLoggedIn()){
-  showAuthOverlay(false);
-  checkOnboarding();
-  connectSSE();
-} else {
-  showAuthOverlay(true);
-  showLogin();
-}
-
-/* Auto-refresh status every 30s */
-setInterval(() => {
-  const activeTab = document.querySelector('.tab-content.active');
-  if(activeTab){
-    const tabId = activeTab.id.replace('tab-','');
-    if(tabId==='dashboard') loadDashboard();
-    else if(tabId==='tasks') loadTasks();
-  }
-}, 30000);
-</script>
+  </div>
+</div>
+<div class="guide-target" id="guide-target" style="display:none"></div>
+<div class="guide-tooltip" id="guide-tooltip" style="display:none">
+  <div class="gt-title" id="gt-title"></div>
+  <div id="gt-text"></div>
+</div>
+
+<script src="js/api.js?v=1778343276"></script>
+<script src="js/events.js?v=1778343276"></script>
+<script src="js/guide.js?v=1778343276"></script>
+<script src="js/app.js?v=1778343276"></script>
 </body>
 </html>

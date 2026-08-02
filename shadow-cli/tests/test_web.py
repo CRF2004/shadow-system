@@ -85,6 +85,30 @@ class TestWebAPI(unittest.TestCase):
         self.assertIn("soldierCount", data)
         self.assertIn("achievementCount", data)
 
+    # ── Skills ───────────────────────────────────────────────────────
+
+    def test_skills_endpoint_empty(self):
+        """Skills endpoint returns empty list for new player."""
+        reset_player()
+        data = self._get("/api/skills")
+        self.assertIn("skills", data)
+        self.assertIsInstance(data["skills"], list)
+        self.assertEqual(len(data["skills"]), 0)
+
+    def test_skills_endpoint_with_config(self):
+        """Skills endpoint returns configured skills."""
+        reset_player()
+        # Configure skills via onboarding save
+        skills = [
+            {"id": "guitar", "name": "吉他", "category": "音乐", "unit": "分钟", "icon": "🎸",
+             "exp_formula": "linear", "exp_per_unit": 2, "daily_cap": 120, "daily_target": 30},
+        ]
+        self._post("/api/onboard/save", {"skills": skills, "template_used": "test"})
+        data = self._get("/api/skills")
+        self.assertEqual(len(data["skills"]), 1)
+        self.assertEqual(data["skills"][0]["id"], "guitar")
+        self.assertEqual(data["skills"][0]["icon"], "🎸")
+
     # ── Tasks ────────────────────────────────────────────────────────
 
     def test_tasks_returns_daily_tasks(self):
@@ -123,6 +147,37 @@ class TestWebAPI(unittest.TestCase):
         self._post("/api/record", {"type": "commit", "quantity": 1})
         status_after = self._get("/api/status")
         self.assertGreater(status_after["totalExp"], status_before["totalExp"])
+
+    # ── Activities ───────────────────────────────────────────────────
+
+    def test_activities_single(self):
+        """Activities endpoint accepts a single activity."""
+        reset_player()
+        data = self._post("/api/activities", {"type": "commit", "quantity": 1, "source": "git_hook"})
+        self.assertTrue(data["success"])
+        self.assertEqual(data["count"], 1)
+        self.assertGreater(data["total_exp"], 0)
+        self.assertEqual(data["results"][0]["action_type"], "commit")
+
+    def test_activities_batch(self):
+        """Activities endpoint accepts a batch of activities."""
+        reset_player()
+        data = self._post("/api/activities", {
+            "activities": [
+                {"type": "commit", "quantity": 1},
+                {"type": "coding_line", "quantity": 100},
+            ],
+        })
+        self.assertTrue(data["success"])
+        self.assertEqual(data["count"], 2)
+        self.assertEqual(len(data["results"]), 2)
+        self.assertGreater(data["total_exp"], 0)
+
+    def test_activities_invalid_payload(self):
+        """Activities endpoint rejects empty payloads."""
+        data = self._post("/api/activities", {})
+        self.assertFalse(data["success"])
+        self.assertIn("message", data)
 
     # ── Summon ───────────────────────────────────────────────────────
 
@@ -372,6 +427,61 @@ class TestWebAPI(unittest.TestCase):
         save_player(player)
         data = self._post("/api/allocate-stat", {"stat": "str", "amount": 1})
         self.assertFalse(data["success"])
+
+    # ── Analytics API ───────────────────────────────────────────────
+
+    def test_analytics_weekly(self):
+        """Weekly report endpoint."""
+        reset_player()
+        from analytics import log_daily_activity
+        from state import load_player
+        player = load_player()
+        from datetime import date, timedelta
+        monday = date.today() - timedelta(days=date.today().weekday())
+        log_daily_activity(player, monday.isoformat(), "commit", 3, 150, 10)
+        log_daily_activity(player, monday.isoformat(), "coding", 500, 50, 0)
+        save_player(player)
+        data = self._get("/api/analytics/weekly")
+        self.assertIn("week_start", data)
+        self.assertIn("days_active", data)
+        self.assertIn("total_exp", data)
+        self.assertIn("daily_data", data)
+        self.assertIn("trend", data)
+        self.assertGreater(data["total_exp"], 0)
+
+    def test_analytics_monthly(self):
+        """Monthly report endpoint."""
+        data = self._get("/api/analytics/monthly")
+        self.assertIn("month", data)
+        self.assertIn("days_active", data)
+        self.assertIn("total_exp", data)
+
+    def test_analytics_insights(self):
+        """Insights endpoint."""
+        data = self._get("/api/analytics/insights")
+        self.assertIn("insights", data)
+        self.assertIsInstance(data["insights"], list)
+
+    def test_analytics_streak(self):
+        """Streak history endpoint."""
+        data = self._get("/api/analytics/streak")
+        self.assertIn("current_streak", data)
+        self.assertIn("best_streak", data)
+        self.assertIn("active_days", data)
+        self.assertIn("completion_rate", data)
+
+    def test_analytics_reminders(self):
+        """Smart reminders endpoint."""
+        data = self._get("/api/analytics/reminders")
+        self.assertIn("reminders", data)
+        self.assertIsInstance(data["reminders"], list)
+
+    def test_analytics_breakdown(self):
+        """Type breakdown endpoint."""
+        data = self._get("/api/analytics/breakdown")
+        self.assertIn("types", data)
+        self.assertIn("most_active_type", data)
+        self.assertIsInstance(data["types"], list)
 
     # ── Static file serving ──────────────────────────────────────────
 

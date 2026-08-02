@@ -275,3 +275,206 @@ def get_git_status_info() -> str:
     lines.append("└──────────────────────────────────────────┘")
 
     return "\n".join(lines)
+
+
+# ── GitHub API 远程同步（可选） ─────────────────────────────────────────────
+
+GITHUB_CONFIG_FILE = Path.home() / ".shadow" / "github_sync.json"
+
+
+def _load_github_config() -> dict:
+    """加载 GitHub 同步配置（repo 列表 + token）。"""
+    if GITHUB_CONFIG_FILE.exists():
+        try:
+            return json.loads(GITHUB_CONFIG_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"repos": [], "token": ""}
+
+
+def _save_github_config(config: dict) -> None:
+    """保存 GitHub 同步配置。"""
+    GITHUB_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    GITHUB_CONFIG_FILE.write_text(
+        json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def github_add_repo(repo_full_name: str, token: str = "") -> dict:
+    """添加一个 GitHub 仓库到同步列表。
+
+    Args:
+        repo_full_name: 例如 "user/repo" 或完整 URL
+        token: 可选，私有仓库需要 GitHub Personal Access Token
+
+    Returns:
+        结果 dict
+    """
+    # 从 URL 中提取 owner/repo
+    if repo_full_name.startswith("http"):
+        parts = repo_full_name.rstrip("/").split("/")
+        if len(parts) >= 2:
+            repo_full_name = "/".join(parts[-2:])
+
+    config_data = _load_github_config()
+    existing = [r for r in config_data["repos"] if r["name"] == repo_full_name]
+
+    if existing:
+        existing[0]["token"] = token or existing[0]["token"]
+        msg = f"已更新仓库: {repo_full_name}"
+    else:
+        config_data["repos"].append({"name": repo_full_name, "token": token})
+        msg = f"已添加仓库: {repo_full_name}"
+
+    if token and not config_data.get("token"):
+        config_data["token"] = token
+
+    _save_github_config(config_data)
+    return {"success": True, "message": msg, "repos": config_data["repos"]}
+
+
+def github_remove_repo(repo_full_name: str) -> dict:
+    """从同步列表中移除一个仓库。"""
+    config_data = _load_github_config()
+    before = len(config_data["repos"])
+    config_data["repos"] = [r for r in config_data["repos"] if r["name"] != repo_full_name]
+
+    if len(config_data["repos"]) < before:
+        _save_github_config(config_data)
+        return {"success": True, "message": f"已移除仓库: {repo_full_name}"}
+    return {"success": False, "message": f"仓库 {repo_full_name} 不在列表中"}
+
+
+def github_list_repos() -> dict:
+    """列出已配置的 GitHub 仓库。"""
+    config_data = _load_github_config()
+    return {
+        "success": True,
+        "repos": config_data["repos"],
+        "total": len(config_data["repos"]),
+    }
+
+
+def github_fetch_commits(repo_full_name: str = "", since: str | None = None) -> list[dict]:
+    """通过 GitHub API 获取远程仓库的 commit 记录。
+
+    Args:
+        repo_full_name: 仓库名 "owner/repo"，为空则获取所有配置的仓库
+        since: ISO 日期字符串，默认今日
+
+    Returns:
+        commit 列表（与 get_daily_commits 格式兼容）
+    """
+    import urllib.request
+    import urllib.error
+
+    since = since or date.today().isoformat()
+    config_data = _load_github_config()
+    repos_to_fetch = []
+
+    if repo_full_name:
+        repos_to_fetch = [{"name": repo_full_name, "token": ""}]
+    else:
+        repos_to_fetch = config_data.get("repos", [])
+
+    all_commits = []
+
+    for repo in repos_to_fetch:
+        name = repo["name"]
+        token = repo.get("token") or config_data.get("token", "")
+
+        url = f"https://api.github.com/repos/{name}/commits?since={since}T00:00:00Z&per_page=50"
+        req = urllib.request.Request(url)
+        req.add_header("Accept", "application/vnd.github.v3+json")
+        req.add_header("User-Agent", "shadow-system/1.0")
+        if token:
+            req.add_header("Authorization", f"Bearer {token}")
+
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            if e.code == 403:
+                print(f"  ⚠️ {name}: API 限流，请设置 GitHub Token")
+            elif e.code == 404:
+                print(f"  ⚠️ {name}: 仓库不存在或为私有（需要 Token）")
+            else:
+                print(f"  ⚠️ {name}: HTTP {e.code}")
+            continue
+        except urllib.error.URLError as e:
+            print(f"  ⚠️ {name}: 网络错误 {e.reason}")
+            continue
+
+        for item in raw:
+            commit_data = {
+                "hash": item.get("sha", "")[:8],
+                "author": item.get("commit", {}).get("author", {}).get("name", "unknown"),
+                "email": item.get("commit", {}).get("author", {}).get("email", ""),
+                "date": item.get("commit", {}).get("author", {}).get("date", ""),
+                "message": item.get("commit", {}).get("message", "").split("\n")[0],
+                "files": [],
+                "insertions": 0,
+                "deletions": 0,
+                "repo": name,
+                "url": item.get("html_url", ""),
+            }
+            all_commits.append(commit_data)
+
+    return all_commits
+
+
+def github_scan_and_grant(player: dict, repo_name: str = "") -> dict:
+    """扫描远程 GitHub commit 并给予 EXP。
+
+    Args:
+        player: 玩家状态
+        repo_name: 指定仓库，为空则扫描所有配置的仓库
+
+    Returns:
+        结果 dict（与 scan_commits_and_grant 格式兼容）
+    """
+    commits = github_fetch_commits(repo_name)
+    if not commits:
+        return {
+            "commits_found": 0,
+            "exp_granted": 0,
+            "levelup_msgs": [],
+            "achievement_msgs": [],
+            "message": "没有找到新的远程 commit",
+        }
+
+    repo_label = repo_name or "所有仓库"
+    streak = player.get("streak", 0)
+    combo = player.get("combo", 0)
+    commit_count = len(commits)
+    exp = get_exp_for_action("commit", commit_count, streak, combo)
+
+    levelup_msgs = add_exp(player, exp)
+    player["commitCount"] = player.get("commitCount", 0) + commit_count
+
+    new_achievements = check_achievements(player)
+    ach_msgs = []
+    for ach in new_achievements:
+        ach_msgs.append(f"🏆 成就解锁: {ach['name']} (+{ach['reward_exp']} EXP)")
+
+    save_player(player)
+
+    # 记录日志
+    log_file = config.LOGS_DIR / f"github_scan_{date.today().isoformat()}.json"
+    scan_log = {
+        "timestamp": datetime.now().isoformat(),
+        "repo": repo_label,
+        "commits_found": commit_count,
+        "exp_granted": exp,
+        "commit_hashes": [c["hash"] for c in commits],
+    }
+    with open(log_file, "w", encoding="utf-8") as f:
+        json.dump(scan_log, f, indent=2, ensure_ascii=False)
+
+    return {
+        "commits_found": commit_count,
+        "exp_granted": exp,
+        "levelup_msgs": levelup_msgs,
+        "achievement_msgs": ach_msgs,
+        "message": f"✅ 远程扫描到 {commit_count} 个 commit（{repo_label}） → +{exp} EXP",
+    }

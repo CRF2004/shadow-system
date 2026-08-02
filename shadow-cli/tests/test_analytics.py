@@ -1,11 +1,16 @@
 """Tests for analytics module."""
 
+import os
+import sys
 from datetime import date, timedelta
+
+# Add shadow-cli to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from analytics import (
     log_daily_activity, get_daily_log,
     get_weekly_report, get_monthly_report,
-    get_type_breakdown, get_streak_history, get_insights,
+    get_type_breakdown, get_streak_history, get_insights, get_smart_reminders,
     format_ascii_chart, format_weekly_report,
 )
 from state import create_default_player
@@ -183,6 +188,20 @@ class TestInsights:
 
         insights = get_insights(player)
         assert any("增加" in i for i in insights)
+
+
+class TestSmartReminders:
+    def test_no_data_reminder(self):
+        player = create_default_player()
+        reminders = get_smart_reminders(player)
+        assert reminders
+        assert any("打卡" in r for r in reminders)
+
+    def test_idle_reminder(self):
+        player = create_default_player()
+        log_daily_activity(player, (date.today() - timedelta(days=4)).isoformat(), "commit", 1, 50, 0)
+        reminders = get_smart_reminders(player)
+        assert any("没有记录活动" in r or "低门槛" in r for r in reminders)
 
 
 class TestFormatAsciiChart:

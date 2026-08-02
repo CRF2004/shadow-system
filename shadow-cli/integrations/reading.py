@@ -50,8 +50,8 @@ def _record_import(player: dict, source: str, date_str: str, exp: int, details: 
         "importedAt": datetime.now().isoformat(),
     })
 
-    if len(player["importHistory"]) > 100:
-        player["importHistory"] = player["importHistory"][-100:]
+    if len(player["importHistory"]) > 50:
+        player["importHistory"] = player["importHistory"][-50:]
 
     new_ach = check_achievements(player)
     for ach in new_ach:

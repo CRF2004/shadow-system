@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  # NextChat — 对话式游戏界面
+  nextchat:
+    image: ghcr.io/chatanywhere/nextchat:latest
+    container_name: shadow-nextchat
+    ports:
+      - "3000:3000"
+    environment:
+      - BASE_URL=http://host.docker.internal:8080
+      - CUSTOM_MODELS=+shadow-chat
+      - DEFAULT_MODEL=shadow-chat
+      - OPENAI_API_KEY=shadow-local-token
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # Shadow System 游戏引擎
+  shadow-engine:
+    build: ./shadow-cli
+    container_name: shadow-engine
+    ports:
+      - "8080:8080"
+    volumes:
+      - ~/.claude/shadow-state:/root/.claude/shadow-state
+    environment:
+      - SHADOW_PORT=8080
+      - SHADOW_HOST=0.0.0.0
+    restart: unless-stopped

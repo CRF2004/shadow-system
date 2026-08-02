@@ -1,0 +1,29 @@
+# Shadow System — NextChat Docker 部署
+#
+# 前置条件：
+#   1. 先启动游戏引擎: python3 shadow-cli/web_server.py
+#   2. 确保 A2A_API_TOKEN 环境变量已设置
+#
+# 启动:
+#   docker compose -f docker-compose.nextchat.yml up -d
+#
+# 访问:
+#   http://localhost:3000
+
+version: "3.8"
+
+services:
+  nextchat:
+    image: ghcr.io/chatanywhere/nextchat:latest
+    container_name: shadow-nextchat
+    ports:
+      - "3000:3000"
+    environment:
+      # 指向已在本地运行的 shadow 游戏引擎
+      - BASE_URL=http://host.docker.internal:8081
+      - CUSTOM_MODELS=+shadow-chat
+      - DEFAULT_MODEL=shadow-chat
+      - OPENAI_API_KEY=shadow-local-token
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

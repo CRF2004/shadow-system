@@ -236,6 +236,51 @@ def get_insights(player: dict) -> list[str]:
                 break
     return insights
 
+def get_smart_reminders(player: dict) -> list[str]:
+    """Generate actionable reminders for the player's recent behavior."""
+    reminders: list[str] = []
+    daily_log = player.get("dailyLog", [])
+    if not daily_log:
+        return ["先完成一次打卡，系统会根据你的习惯生成更精准的提醒"]
+
+    last = max(daily_log, key=lambda e: e["date"])
+    last_date = date.fromisoformat(last["date"])
+    idle_days = (date.today() - last_date).days
+
+    if idle_days >= 1:
+        reminders.append(f"你已经 {idle_days} 天没有记录活动了，建议先补一次最容易完成的任务")
+    if idle_days >= 3:
+        reminders.append("当前间隔偏长，今天优先完成一个低门槛任务，先把节奏拉回来")
+
+    recent_7d = _filter_days(daily_log, 7)
+    recent_types = set()
+    for e in recent_7d:
+        for a in e.get("actions", []):
+            recent_types.add(a["type"])
+
+    all_known = set()
+    for e in daily_log:
+        for a in e.get("actions", []):
+            all_known.add(a["type"])
+
+    missing_types = sorted(all_known - recent_types)
+    if missing_types:
+        reminders.append(f"最近 7 天没有记录这些类型：{', '.join(missing_types[:3])}，可以安排一次补全")
+
+    cur_mon, _ = _get_week_range(0)
+    week_entries = _filter_week(daily_log, cur_mon, cur_mon + timedelta(days=6))
+    week_types = _actions_by_type(week_entries)
+    if week_types:
+        top_type, top_qty = max(week_types.items(), key=lambda x: x[1])
+        total_qty = sum(week_types.values())
+        if total_qty > 0 and top_qty / total_qty >= 0.8:
+            reminders.append(f"本周 {top_type} 占比过高，建议加入其他类型任务，避免训练内容单一")
+
+    if not reminders:
+        reminders.append("保持当前节奏即可，继续稳定打卡会带来更好的成长曲线")
+    return reminders
+
+
 def format_ascii_chart(data: list[tuple[str, int]], title: str = "", max_bar_width: int = 40) -> str:
     """Render ASCII horizontal bar chart."""
     if not data:

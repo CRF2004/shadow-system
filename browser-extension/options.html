@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Shadow System — Settings</title>
+  <style>
+    body { font-family: 'Courier New', monospace; background: #1a1a2e; color: #e0e0e0;
+           padding: 24px; max-width: 500px; margin: 0 auto; }
+    h1 { color: #c9a84c; font-size: 20px; }
+    .field { margin: 16px 0; }
+    label { display: block; font-size: 12px; color: #888; margin-bottom: 4px; }
+    input, select { width: 100%; padding: 8px; background: #16213e; border: 1px solid #2a2a4e;
+                    color: #e0e0e0; border-radius: 4px; font-family: inherit; box-sizing: border-box; }
+    button { background: #c9a84c; color: #1a1a2e; border: none; padding: 8px 24px;
+             border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 14px;
+             margin-top: 16px; }
+    button:hover { background: #dbb84c; }
+    #status { margin-top: 12px; font-size: 12px; color: #4caf50; }
+  </style>
+</head>
+<body>
+  <h1>⚙ Shadow System Settings</h1>
+
+  <div class="field">
+    <label>Server URL (Shadow System game engine)</label>
+    <input type="url" id="serverUrl" placeholder="http://localhost:8081" />
+  </div>
+
+  <div class="field">
+    <label>API Token</label>
+    <input type="password" id="apiToken" placeholder="Leave empty if not required" />
+  </div>
+
+  <div class="field">
+    <label>Report Interval (minutes)</label>
+    <select id="interval">
+      <option value="1">1 min</option>
+      <option value="5" selected>5 min</option>
+      <option value="10">10 min</option>
+      <option value="15">15 min</option>
+      <option value="30">30 min</option>
+    </select>
+  </div>
+
+  <button id="save">Save</button>
+  <div id="status"></div>
+
+  <script src="options.js"></script>
+</body>
+</html>

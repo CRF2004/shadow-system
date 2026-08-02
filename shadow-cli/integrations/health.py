@@ -58,8 +58,8 @@ def _record_import(player: dict, source: str, date_str: str, exp: int, details: 
     })
 
     # Keep only last 100 imports
-    if len(player["importHistory"]) > 100:
-        player["importHistory"] = player["importHistory"][-100:]
+    if len(player["importHistory"]) > 50:
+        player["importHistory"] = player["importHistory"][-50:]
 
     # Check achievements
     new_ach = check_achievements(player)
