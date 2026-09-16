@@ -1,0 +1,169 @@
+{
+  "id": "guitar1",
+  "displayName": "Guitar",
+  "pwHash": "7ef0ae59b45e579ebd9d3b7d33d00edd4db59f583fb7b3a78838ffbc3facf9e1",
+  "salt": "74890d2f7b928116687990de7c612f4e",
+  "player": {
+    "name": "Guitar",
+    "title": "E 级猎人",
+    "level": 2,
+    "exp": 80,
+    "expToNext": 150,
+    "hp": 100,
+    "mp": 100,
+    "stats": {
+      "strength": 10,
+      "agility": 10,
+      "sense": 10,
+      "vitality": 10,
+      "intelligence": 10
+    },
+    "statPoints": 3,
+    "gold": 10,
+    "gems": 0,
+    "soldiers": [],
+    "achievements": [
+      "hello_world"
+    ],
+    "bosses_defeated": [],
+    "inventory": [],
+    "titleSuffixes": [],
+    "guildJoined": false,
+    "guildCreated": false,
+    "guildTasksCompleted": 0,
+    "guildBossesDefeated": 0,
+    "totalGoldEarned": 10,
+    "streak": 0,
+    "combo": 0,
+    "totalExp": 180,
+    "commitCount": 0,
+    "doubleExpNext": 0,
+    "extraDungeonToday": 0,
+    "importHistory": [],
+    "healthData": {},
+    "readingData": {},
+    "browserData": {},
+    "integrationSettings": {
+      "health_enabled": false,
+      "reading_enabled": false,
+      "browser_enabled": false
+    },
+    "createdAt": "2026-05-09T17:35:33.422912",
+    "lastActive": "2026-05-09T17:35:33.422912",
+    "lastDaily": null,
+    "dailyProgress": {
+      "date": "2026-05-09",
+      "tasks": {
+        "daily_guitar": {
+          "id": "daily_guitar",
+          "name": "🎸 吉他",
+          "type": "guitar",
+          "target": 30,
+          "reward": 30,
+          "difficulty": "E",
+          "status": "completed",
+          "current": 30
+        },
+        "daily_vocabulary": {
+          "id": "daily_vocabulary",
+          "name": "📚 背单词",
+          "type": "vocabulary",
+          "target": 50,
+          "reward": 25,
+          "difficulty": "E",
+          "status": "completed",
+          "current": 50
+        },
+        "daily_running": {
+          "id": "daily_running",
+          "name": "🏃‍♂️ 跑步",
+          "type": "running",
+          "target": 5,
+          "reward": 25,
+          "difficulty": "E",
+          "status": "completed",
+          "current": 5
+        },
+        "emergency_vocabulary": {
+          "id": "emergency_vocabulary",
+          "name": "⚡ 背单词 (紧急挑战)",
+          "type": "vocabulary",
+          "target": 102,
+          "reward": 81,
+          "difficulty": "C",
+          "status": "active",
+          "current": 50
+        }
+      }
+    },
+    "dailyLog": [
+      {
+        "date": "2026-05-09",
+        "actions": [
+          {
+            "type": "guitar",
+            "quantity": 30,
+            "exp": 60
+          },
+          {
+            "type": "vocabulary",
+            "quantity": 50,
+            "exp": 50
+          },
+          {
+            "type": "running",
+            "quantity": 5,
+            "exp": 50
+          }
+        ],
+        "totalExp": 160,
+        "totalGold": 0,
+        "streak": 0,
+        "level": 1
+      }
+    ],
+    "onboarded": true,
+    "skillConfig": {
+      "skills": [
+        {
+          "id": "guitar",
+          "name": "吉他",
+          "category": "音乐",
+          "unit": "分钟",
+          "icon": "🎸",
+          "exp_formula": "linear",
+          "exp_per_unit": 2,
+          "daily_cap": 120,
+          "daily_target": 30
+        },
+        {
+          "id": "vocabulary",
+          "name": "背单词",
+          "category": "学习",
+          "unit": "个",
+          "icon": "📚",
+          "exp_formula": "linear",
+          "exp_per_unit": 1,
+          "daily_cap": 150,
+          "daily_target": 50
+        },
+        {
+          "id": "running",
+          "name": "跑步",
+          "category": "健康",
+          "unit": "公里",
+          "icon": "🏃‍♂️",
+          "exp_formula": "linear",
+          "exp_per_unit": 10,
+          "daily_cap": 100,
+          "daily_target": 5
+        }
+      ],
+      "templateUsed": null
+    },
+    "logs": [],
+    "username": "guitar1"
+  },
+  "createdAt": "2026-05-09T17:35:33.422952",
+  "lastLogin": "2026-05-09T17:35:33.481255"
+}

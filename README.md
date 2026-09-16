@@ -138,7 +138,7 @@ cd shadow-cli
 python -m pytest tests/ -v
 ```
 
-**305 个测试全部通过。**
+**450 个测试全部通过。**
 
 ## 数据位置
 
@@ -163,7 +163,25 @@ python -m pytest tests/ -v
 | v0.5.0 | Phase 4 | 外部集成 (健康/阅读/浏览器) ✅ |
 | v0.5.1 | Phase 5 | Web 仪表盘 + RPG UI ✅ |
 | v0.6.0 | Phase 6 | 多用户认证 + 公会系统 + SSE 实时推送 ✅ |
+| v0.7.0 | Phase 7 | 数据洞察 + 留存分析（周报/月报/insights/streak）✅ |
+| v0.8.0 | Phase 8 | 自定义技能 + 初始化引导 ✅ |
+| v0.9.2 | Phase 9 | 体验修复 + 智能提醒 + 移动端适配 ✅ |
 
 ---
 
 *「暗影君主啊，这份蓝图已备好。何时出征，听您号令。」*
+
+
+## 服务器停用归档（2026-09-16）
+
+此私有仓库保存 `/mnt/chengrongfeng_private/cc_dump/shadow-system/` 的完整项目代码、原有 25 个提交和最新未提交改动。新增归档提交位于原历史之后。
+
+服务器实际角色和任务状态位于 `/home/srp_member/.claude/shadow-state/`，快照保存在仓库 `server-state-backup/shadow-state/`。恢复前先备份目标机器已有状态，再将快照内容复制到 `~/.claude/shadow-state/`。用户状态包含个人记录，应保持仓库私有。登录签名密钥 `token_secret` 保存在本地原始备份中；恢复时可由程序生成新密钥并重新登录。
+
+```bash
+cd shadow-cli
+python main.py status
+python main.py web --port 8080
+```
+
+缓存、运行日志和依赖安装目录不进入版本控制。原始项目与运行状态另有本地压缩备份。

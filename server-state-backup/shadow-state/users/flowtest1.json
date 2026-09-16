@@ -1,0 +1,169 @@
+{
+  "id": "flowtest1",
+  "displayName": "FlowTest",
+  "pwHash": "b61c4c04b6c599d8a0545c5825b96516a48cd2adc22f2fd8bbb606f11c6db62e",
+  "salt": "7917c289a726b8731d5f9ffd428cbbed",
+  "player": {
+    "name": "FlowTest",
+    "title": "E 级猎人",
+    "level": 2,
+    "exp": 110,
+    "expToNext": 150,
+    "hp": 100,
+    "mp": 100,
+    "stats": {
+      "strength": 10,
+      "agility": 10,
+      "sense": 10,
+      "vitality": 10,
+      "intelligence": 10
+    },
+    "statPoints": 3,
+    "gold": 10,
+    "gems": 0,
+    "soldiers": [],
+    "achievements": [
+      "hello_world"
+    ],
+    "bosses_defeated": [],
+    "inventory": [],
+    "titleSuffixes": [],
+    "guildJoined": false,
+    "guildCreated": false,
+    "guildTasksCompleted": 0,
+    "guildBossesDefeated": 0,
+    "totalGoldEarned": 10,
+    "streak": 0,
+    "combo": 0,
+    "totalExp": 210,
+    "commitCount": 3,
+    "doubleExpNext": 0,
+    "extraDungeonToday": 0,
+    "importHistory": [],
+    "healthData": {},
+    "readingData": {},
+    "browserData": {},
+    "integrationSettings": {
+      "health_enabled": false,
+      "reading_enabled": false,
+      "browser_enabled": false
+    },
+    "createdAt": "2026-05-09T15:16:03.428499",
+    "lastActive": "2026-05-09T15:16:03.428499",
+    "lastDaily": null,
+    "dailyProgress": {
+      "date": "2026-05-09",
+      "tasks": {
+        "daily_coding": {
+          "id": "daily_coding",
+          "name": "💻 写代码",
+          "type": "coding",
+          "target": 100,
+          "reward": 20,
+          "difficulty": "E",
+          "status": "completed",
+          "current": 100
+        },
+        "daily_commit": {
+          "id": "daily_commit",
+          "name": "🔀 提交代码",
+          "type": "commit",
+          "target": 3,
+          "reward": 75,
+          "difficulty": "E",
+          "status": "completed",
+          "current": 3
+        },
+        "daily_reading": {
+          "id": "daily_reading",
+          "name": "📖 阅读",
+          "type": "reading",
+          "target": 30,
+          "reward": 20,
+          "difficulty": "E",
+          "status": "completed",
+          "current": 30
+        },
+        "emergency_reading": {
+          "id": "emergency_reading",
+          "name": "⚡ 阅读 (紧急挑战)",
+          "type": "reading",
+          "target": 48,
+          "reward": 38,
+          "difficulty": "C",
+          "status": "active",
+          "current": 30
+        }
+      }
+    },
+    "dailyLog": [
+      {
+        "date": "2026-05-09",
+        "actions": [
+          {
+            "type": "coding",
+            "quantity": 100,
+            "exp": 10
+          },
+          {
+            "type": "commit",
+            "quantity": 3,
+            "exp": 150
+          },
+          {
+            "type": "reading",
+            "quantity": 30,
+            "exp": 30
+          }
+        ],
+        "totalExp": 190,
+        "totalGold": 0,
+        "streak": 0,
+        "level": 1
+      }
+    ],
+    "onboarded": true,
+    "skillConfig": {
+      "skills": [
+        {
+          "id": "coding",
+          "name": "写代码",
+          "category": "开发",
+          "unit": "行",
+          "icon": "💻",
+          "exp_formula": "linear",
+          "exp_per_unit": 0.1,
+          "daily_cap": 200,
+          "daily_target": 100
+        },
+        {
+          "id": "commit",
+          "name": "提交代码",
+          "category": "开发",
+          "unit": "次",
+          "icon": "🔀",
+          "exp_formula": "linear",
+          "exp_per_unit": 50,
+          "daily_cap": 250,
+          "daily_target": 3
+        },
+        {
+          "id": "reading",
+          "name": "阅读",
+          "category": "学习",
+          "unit": "页",
+          "icon": "📖",
+          "exp_formula": "linear",
+          "exp_per_unit": 1,
+          "daily_cap": 150,
+          "daily_target": 30
+        }
+      ],
+      "templateUsed": "developer"
+    },
+    "logs": [],
+    "username": "flowtest1"
+  },
+  "createdAt": "2026-05-09T15:16:03.428542",
+  "lastLogin": "2026-05-09T15:16:03.631607"
+}

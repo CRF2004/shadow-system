@@ -5,11 +5,26 @@ Protocol designed for future browser extension export.
 """
 
 import json
+import math
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import config
 from engine import add_exp, check_achievements
+
+
+def _finite_int(value) -> int:
+    """Coerce to int, rejecting non-finite floats (NaN/Infinity).
+
+    Mirrors the guard already used by the health/reading importers: json.load
+    accepts the non-standard ``Infinity``/``NaN`` literals, and ``int()`` on
+    those raises OverflowError (infinity) or ValueError (NaN), which would
+    abort the whole import. Raising ValueError here lets the per-entry
+    (ValueError, TypeError) skip treat it like any other bad number.
+    """
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(f"non-finite number: {value!r}")
+    return int(value)
 
 
 def _calculate_browser_exp(minutes: int = 0) -> dict:
@@ -94,7 +109,13 @@ def import_browser_data(player: dict, file_path: str) -> dict:
 
         date_str = entry.get("date", entry.get("dateTime", ""))
         site = entry.get("site", entry.get("url", entry.get("domain", "unknown")))
-        minutes = int(entry.get("minutes", entry.get("timeSpent", entry.get("时间", 0))))
+        try:
+            minutes = _finite_int(entry.get("minutes", entry.get("timeSpent", entry.get("时间", 0))))
+        except (ValueError, TypeError):
+            # Malformed / non-finite numeric field in an external export: skip
+            # this entry instead of aborting the whole import (health/reading
+            # importers already tolerate this).
+            continue
 
         if not date_str:
             continue

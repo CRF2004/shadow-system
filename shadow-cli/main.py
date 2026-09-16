@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Shadow CLI - 暗影君主系统 v0.4.0
+Shadow CLI - 暗影君主系统 v0.9.2
 个人成长游戏化工具
 
 Usage:

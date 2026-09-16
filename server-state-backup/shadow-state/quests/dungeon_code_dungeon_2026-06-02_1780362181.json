@@ -1,0 +1,37 @@
+{
+  "dungeon_id": "code_dungeon",
+  "dungeon_name": "代码地下城",
+  "difficulty": "E",
+  "created_at": "2026-06-02T09:03:01.816486",
+  "expires_at": "2026-06-03T09:03:01.816489",
+  "tasks": [
+    {
+      "name": "修复一个 Bug",
+      "type": "commit",
+      "target": 2,
+      "current": 2,
+      "completed": true,
+      "reward": 40
+    },
+    {
+      "name": "编写单元测试",
+      "type": "coding",
+      "target": 30,
+      "current": 10,
+      "completed": false,
+      "reward": 45
+    },
+    {
+      "name": "重构一段代码",
+      "type": "coding",
+      "target": 50,
+      "current": 10,
+      "completed": false,
+      "reward": 50
+    }
+  ],
+  "total_reward": 135,
+  "completed": false,
+  "failed": false,
+  "_file": "/home/srp_member/.claude/shadow-state/quests/dungeon_code_dungeon_2026-06-02_1780362181.json"
+}

@@ -1,0 +1,142 @@
+{
+  "id": "tester1",
+  "displayName": "Tester",
+  "pwHash": "1013984d7f911a7e82f006a0626b07713c5ecd547ef2efcfeddc6da96d66b4fe",
+  "salt": "34358b1527bd50be6bae3db84ce9a38e",
+  "player": {
+    "name": "Tester",
+    "title": "E 级猎人",
+    "level": 1,
+    "exp": 0,
+    "expToNext": 100,
+    "hp": 100,
+    "mp": 100,
+    "stats": {
+      "strength": 10,
+      "agility": 10,
+      "sense": 10,
+      "vitality": 10,
+      "intelligence": 10
+    },
+    "statPoints": 0,
+    "gold": 0,
+    "gems": 0,
+    "soldiers": [],
+    "achievements": [],
+    "bosses_defeated": [],
+    "inventory": [],
+    "titleSuffixes": [],
+    "guildJoined": false,
+    "guildCreated": false,
+    "guildTasksCompleted": 0,
+    "guildBossesDefeated": 0,
+    "totalGoldEarned": 0,
+    "streak": 0,
+    "combo": 0,
+    "totalExp": 0,
+    "commitCount": 0,
+    "doubleExpNext": 0,
+    "extraDungeonToday": 0,
+    "importHistory": [],
+    "healthData": {},
+    "readingData": {},
+    "browserData": {},
+    "integrationSettings": {
+      "health_enabled": false,
+      "reading_enabled": false,
+      "browser_enabled": false
+    },
+    "createdAt": "2026-05-09T15:12:03.193546",
+    "lastActive": "2026-05-09T15:12:03.193546",
+    "lastDaily": null,
+    "dailyProgress": {
+      "date": "2026-05-09",
+      "tasks": {
+        "daily_coding": {
+          "id": "daily_coding",
+          "name": "💻 写代码",
+          "type": "coding",
+          "target": 100,
+          "reward": 20,
+          "difficulty": "E",
+          "status": "pending",
+          "current": 0
+        },
+        "daily_提交代码": {
+          "id": "daily_提交代码",
+          "name": "💻 提交代码",
+          "type": "提交代码",
+          "target": 100,
+          "reward": 20,
+          "difficulty": "E",
+          "status": "pending",
+          "current": 0
+        },
+        "daily_技术阅读": {
+          "id": "daily_技术阅读",
+          "name": "📖 技术阅读",
+          "type": "技术阅读",
+          "target": 30,
+          "reward": 20,
+          "difficulty": "E",
+          "status": "pending",
+          "current": 0
+        },
+        "emergency_coding": {
+          "id": "emergency_coding",
+          "name": "⚡ 写代码 (紧急挑战)",
+          "type": "coding",
+          "target": 216,
+          "reward": 30,
+          "difficulty": "C",
+          "status": "pending",
+          "current": 0
+        }
+      }
+    },
+    "dailyLog": [],
+    "onboarded": true,
+    "skillConfig": {
+      "skills": [
+        {
+          "id": "coding",
+          "name": "写代码",
+          "category": "开发",
+          "unit": "行",
+          "icon": "💻",
+          "exp_formula": "linear",
+          "exp_per_unit": 0.1,
+          "daily_cap": 200,
+          "daily_target": 100
+        },
+        {
+          "id": "提交代码",
+          "name": "提交代码",
+          "category": "开发",
+          "unit": "行",
+          "icon": "💻",
+          "exp_formula": "linear",
+          "exp_per_unit": 0.1,
+          "daily_cap": 200,
+          "daily_target": 100
+        },
+        {
+          "id": "技术阅读",
+          "name": "技术阅读",
+          "category": "学习",
+          "unit": "页",
+          "icon": "📖",
+          "exp_formula": "linear",
+          "exp_per_unit": 1,
+          "daily_cap": 150,
+          "daily_target": 30
+        }
+      ],
+      "templateUsed": "developer"
+    },
+    "logs": [],
+    "username": "tester1"
+  },
+  "createdAt": "2026-05-09T15:12:03.193580",
+  "lastLogin": "2026-05-09T15:12:32.038604"
+}

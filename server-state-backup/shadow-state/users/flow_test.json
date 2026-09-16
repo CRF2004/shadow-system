@@ -1,0 +1,76 @@
+{
+  "id": "flow_test",
+  "displayName": "Flow测试",
+  "pwHash": "30b20d49fed30c4f7950c13124a58193134b9cc1e5ffd031de46f3d4901939b1",
+  "salt": "9eb52cf9ab6fc9a29cee7c4ecbac0dbc",
+  "player": {
+    "name": "Flow测试",
+    "title": "E 级猎人",
+    "level": 1,
+    "exp": 0,
+    "expToNext": 100,
+    "hp": 100,
+    "mp": 100,
+    "stats": {
+      "strength": 10,
+      "agility": 10,
+      "sense": 10,
+      "vitality": 10,
+      "intelligence": 10
+    },
+    "statPoints": 0,
+    "gold": 0,
+    "gems": 0,
+    "soldiers": [],
+    "achievements": [],
+    "bosses_defeated": [],
+    "inventory": [],
+    "titleSuffixes": [],
+    "guildJoined": false,
+    "guildCreated": false,
+    "guildTasksCompleted": 0,
+    "guildBossesDefeated": 0,
+    "totalGoldEarned": 0,
+    "streak": 0,
+    "combo": 0,
+    "totalExp": 0,
+    "commitCount": 0,
+    "doubleExpNext": 0,
+    "extraDungeonToday": 0,
+    "importHistory": [],
+    "healthData": {},
+    "readingData": {},
+    "browserData": {},
+    "integrationSettings": {
+      "health_enabled": false,
+      "reading_enabled": false,
+      "browser_enabled": false
+    },
+    "createdAt": "2026-05-09T14:19:14.238334",
+    "lastActive": "2026-05-09T14:19:14.238334",
+    "lastDaily": null,
+    "dailyProgress": {},
+    "dailyLog": [],
+    "onboarded": true,
+    "skillConfig": {
+      "skills": [
+        {
+          "id": "coding",
+          "name": "写代码",
+          "category": "开发",
+          "unit": "行",
+          "icon": "💻",
+          "exp_formula": "linear",
+          "exp_per_unit": 0.1,
+          "daily_cap": 200,
+          "daily_target": 100
+        }
+      ],
+      "templateUsed": "developer"
+    },
+    "logs": [],
+    "username": "flow_test"
+  },
+  "createdAt": "2026-05-09T14:19:14.238367",
+  "lastLogin": "2026-05-09T14:19:14.296887"
+}

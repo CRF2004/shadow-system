@@ -5,11 +5,35 @@ Import health data from Xiaomi/Zepp/Apple Health exports and record EXP.
 
 import csv
 import json
+import math
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import config
 from engine import add_exp, apply_task_progress, check_achievements
+
+
+def _finite_int(value) -> int:
+    """Coerce to int, rejecting non-finite floats (NaN/Infinity).
+
+    json.load accepts the non-standard ``Infinity``/``NaN`` literals, and a
+    numeric string like ``"inf"`` parses to a non-finite float via float().
+    ``int()`` on those raises OverflowError (infinity) or ValueError (NaN),
+    which would abort the whole import. Raising ValueError here lets the
+    existing per-entry (ValueError, TypeError) skip treat it like any other
+    malformed number.
+    """
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(f"non-finite number: {value!r}")
+    return int(value)
+
+
+def _finite_float(value) -> float:
+    """Coerce to float, rejecting NaN/Infinity with ValueError."""
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError(f"non-finite number: {value!r}")
+    return result
 
 
 def _calculate_health_exp(steps: int = 0, exercise_min: int = 0, sleep_hours: float = 0) -> dict:
@@ -110,9 +134,14 @@ def import_health_json(player: dict, file_path: str) -> dict:
             continue
 
         date_str = entry.get("date", entry.get("dateTime", entry.get("time", "")))
-        steps = int(entry.get("steps", entry.get("stepCount", entry.get("步数", 0))))
-        exercise_min = int(entry.get("exerciseMinutes", entry.get("exercise_minutes", entry.get("运动分钟", 0))))
-        sleep_hours = float(entry.get("sleepHours", entry.get("sleep_hours", entry.get("sleep", entry.get("睡眠小时", 0)))))
+        try:
+            steps = _finite_int(entry.get("steps", entry.get("stepCount", entry.get("步数", 0))))
+            exercise_min = _finite_int(entry.get("exerciseMinutes", entry.get("exercise_minutes", entry.get("运动分钟", 0))))
+            sleep_hours = _finite_float(entry.get("sleepHours", entry.get("sleep_hours", entry.get("sleep", entry.get("睡眠小时", 0)))))
+        except (ValueError, TypeError):
+            # Malformed numeric field in an external export: skip this entry
+            # instead of aborting the whole import (CSV path already does this).
+            continue
 
         if not date_str:
             continue
@@ -176,9 +205,9 @@ def import_health_csv(player: dict, file_path: str) -> dict:
 
         date_str = normalized.get("date", normalized.get("时间", normalized.get("日期", "")))
         try:
-            steps = int(normalized.get("steps", normalized.get("步数", normalized.get("step", 0))))
-            exercise_min = int(normalized.get("exercise_minutes", normalized.get("运动分钟", normalized.get("exercise", 0))))
-            sleep_hours = float(normalized.get("sleep_hours", normalized.get("睡眠小时", normalized.get("sleep", 0))))
+            steps = _finite_int(normalized.get("steps", normalized.get("步数", normalized.get("step", 0))))
+            exercise_min = _finite_int(normalized.get("exercise_minutes", normalized.get("运动分钟", normalized.get("exercise", 0))))
+            sleep_hours = _finite_float(normalized.get("sleep_hours", normalized.get("睡眠小时", normalized.get("sleep", 0))))
         except (ValueError, TypeError):
             continue
 

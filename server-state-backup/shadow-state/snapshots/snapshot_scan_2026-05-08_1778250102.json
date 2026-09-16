@@ -1,0 +1,55 @@
+{
+  "timestamp": "2026-05-08T22:21:42.617279",
+  "root": "/mnt/chengrongfeng_private/cc_dump/shadow-system/shadow-cli",
+  "label": "scan_2026-05-08",
+  "file_count": 9,
+  "total_lines": 3084,
+  "total_size": 112146,
+  "files": [
+    {
+      "path": "/mnt/chengrongfeng_private/cc_dump/shadow-system/shadow-cli/file_tracker.py",
+      "lines": 293,
+      "hash": "a35d0fb59c64"
+    },
+    {
+      "path": "/mnt/chengrongfeng_private/cc_dump/shadow-system/shadow-cli/config.py",
+      "lines": 188,
+      "hash": "e6492aaf57b5"
+    },
+    {
+      "path": "/mnt/chengrongfeng_private/cc_dump/shadow-system/shadow-cli/state.py",
+      "lines": 87,
+      "hash": "3f07673d7205"
+    },
+    {
+      "path": "/mnt/chengrongfeng_private/cc_dump/shadow-system/shadow-cli/main.py",
+      "lines": 830,
+      "hash": "197ab139b914"
+    },
+    {
+      "path": "/mnt/chengrongfeng_private/cc_dump/shadow-system/shadow-cli/git_tracker.py",
+      "lines": 278,
+      "hash": "bb50bbc14ffc"
+    },
+    {
+      "path": "/mnt/chengrongfeng_private/cc_dump/shadow-system/shadow-cli/engine.py",
+      "lines": 380,
+      "hash": "f788b1a677c7"
+    },
+    {
+      "path": "/mnt/chengrongfeng_private/cc_dump/shadow-system/shadow-cli/tests/test_engine.py",
+      "lines": 401,
+      "hash": "90d90ed02aec"
+    },
+    {
+      "path": "/mnt/chengrongfeng_private/cc_dump/shadow-system/shadow-cli/tests/test_state.py",
+      "lines": 306,
+      "hash": "7f05a2796e86"
+    },
+    {
+      "path": "/mnt/chengrongfeng_private/cc_dump/shadow-system/shadow-cli/tests/test_phase1.py",
+      "lines": 321,
+      "hash": "91b3b7990c1a"
+    }
+  ]
+}

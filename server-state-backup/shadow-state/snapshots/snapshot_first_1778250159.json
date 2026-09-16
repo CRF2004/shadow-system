@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-08T22:22:39.391277",
+  "root": "/tmp/tmp9lm7rna3/test_project",
+  "label": "first",
+  "file_count": 2,
+  "total_lines": 6,
+  "total_size": 55,
+  "files": [
+    {
+      "path": "/tmp/tmp9lm7rna3/test_project/utils.py",
+      "lines": 3,
+      "hash": "2f20343f7012"
+    },
+    {
+      "path": "/tmp/tmp9lm7rna3/test_project/main.py",
+      "lines": 3,
+      "hash": "211158c8d08e"
+    }
+  ]
+}

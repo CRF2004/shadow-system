@@ -64,6 +64,19 @@ def _get_guild_rank(contribution: int) -> str:
             return title
     return "见习公会"
 
+def _parse_dt(value: str) -> datetime | None:
+    """Parse an ISO datetime string, returning None if malformed or missing.
+
+    Mirrors the analytics.py _parse_datetime_date tolerance: corrupted guild
+    state (missing/malformed completedAt/endedAt) must not crash cooldown
+    checks. A None return means "unknown" — treated as no cooldown so members
+    are not permanently locked out by a bad stored timestamp.
+    """
+    try:
+        return datetime.fromisoformat(value)
+    except (ValueError, TypeError):
+        return None
+
 def create_guild(player: dict, guild_name: str, leader_username: str) -> dict:
     """Create a new guild. Returns result dict."""
     guild_name = guild_name.strip()
@@ -331,8 +344,8 @@ def start_guild_task(guild_id: str, username: str) -> dict:
     # Check cooldown
     if guild.get("taskHistory"):
         last_task = guild["taskHistory"][-1]
-        last_time = datetime.fromisoformat(last_task["completedAt"])
-        if (datetime.now() - last_time).total_seconds() < GUILD_TASK_INTERVAL_HOURS * 3600:
+        last_time = _parse_dt(last_task.get("completedAt", ""))
+        if last_time is not None and (datetime.now() - last_time).total_seconds() < GUILD_TASK_INTERVAL_HOURS * 3600:
             return {"success": False, "message": f"公会任务冷却中（每 {GUILD_TASK_INTERVAL_HOURS} 小时一次）"}
 
     # Pick random task
@@ -461,8 +474,8 @@ def start_guild_battle(guild_id: str, username: str) -> dict:
     # Check cooldown
     if guild.get("battleHistory"):
         last_battle = guild["battleHistory"][-1]
-        last_time = datetime.fromisoformat(last_battle["endedAt"])
-        if (datetime.now() - last_time).total_seconds() < GUILD_BATTLE_COOLDOWN_HOURS * 3600:
+        last_time = _parse_dt(last_battle.get("endedAt", ""))
+        if last_time is not None and (datetime.now() - last_time).total_seconds() < GUILD_BATTLE_COOLDOWN_HOURS * 3600:
             return {"success": False, "message": f"Boss 战冷却中（每 {GUILD_BATTLE_COOLDOWN_HOURS} 小时一次）"}
 
     # Pick boss based on guild level

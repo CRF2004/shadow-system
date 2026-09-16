@@ -114,6 +114,31 @@ class TestDungeonProgress(unittest.TestCase):
         prog = progress_dungeon(p, "coding", 10)
         self.assertGreater(len(prog["progress"]), 0)
 
+    def test_progress_dungeon_corrupt_expiry_no_crash(self):
+        """Corrupt instance with malformed expires_at must not crash progress."""
+        import config
+        from dungeon import progress_dungeon
+        p = create_default_player()
+
+        # Write a valid-JSON instance whose expires_at is malformed.
+        bad = {
+            "dungeon_id": "code_dungeon",
+            "completed": False,
+            "failed": False,
+            "expires_at": "not-a-date",
+            "tasks": [{
+                "type": "coding", "name": "写码", "target": 10, "current": 0,
+                "completed": False, "base_exp": 10, "reward": 10, "time_limit": 60,
+            }],
+            "total_reward": 10,
+        }
+        inst_path = config.QUESTS_DIR / "dungeon_bad_1_1.json"
+        inst_path.write_text(json.dumps(bad), encoding="utf-8")
+
+        # Corrupt file is treated as expired → skipped, no crash, no progress.
+        result = progress_dungeon(p, "coding", 5)
+        self.assertEqual(len(result["progress"]), 0)
+
 
 class TestBossDefeat(unittest.TestCase):
     """Test boss defeat detection."""

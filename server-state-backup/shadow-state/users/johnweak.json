@@ -1,0 +1,113 @@
+{
+  "id": "johnweak",
+  "displayName": "JohnWeak",
+  "pwHash": "3b37369bd6e1467c5b666b3edb3c362654ce23d1dbde8e994be5a7b7f2d9dc30",
+  "salt": "2256583c7d47029751feeef96b7dbdcb",
+  "player": {
+    "name": "JohnWeak",
+    "title": "E 级猎人",
+    "level": 1,
+    "exp": 0,
+    "expToNext": 100,
+    "hp": 100,
+    "mp": 100,
+    "stats": {
+      "strength": 10,
+      "agility": 10,
+      "sense": 10,
+      "vitality": 10,
+      "intelligence": 10
+    },
+    "statPoints": 0,
+    "gold": 0,
+    "gems": 0,
+    "soldiers": [],
+    "achievements": [],
+    "bosses_defeated": [],
+    "inventory": [],
+    "titleSuffixes": [],
+    "guildJoined": false,
+    "guildCreated": false,
+    "guildTasksCompleted": 0,
+    "guildBossesDefeated": 0,
+    "totalGoldEarned": 0,
+    "streak": 0,
+    "combo": 0,
+    "totalExp": 0,
+    "commitCount": 0,
+    "doubleExpNext": 0,
+    "extraDungeonToday": 0,
+    "importHistory": [],
+    "healthData": {},
+    "readingData": {},
+    "browserData": {},
+    "integrationSettings": {
+      "health_enabled": false,
+      "reading_enabled": false,
+      "browser_enabled": false
+    },
+    "createdAt": "2026-05-09T12:35:02.098727",
+    "lastActive": "2026-05-09T12:35:02.098727",
+    "lastDaily": null,
+    "dailyProgress": {
+      "date": "2026-05-09",
+      "tasks": {
+        "commit": {
+          "id": "commit",
+          "name": "提交一次代码",
+          "type": "commit",
+          "target": 1,
+          "reward": 50,
+          "difficulty": "D",
+          "status": "pending",
+          "current": 0
+        },
+        "debug": {
+          "id": "debug",
+          "name": "修复一个 Bug",
+          "type": "commit",
+          "target": 1,
+          "reward": 50,
+          "difficulty": "D",
+          "status": "pending",
+          "current": 0
+        },
+        "learn": {
+          "id": "learn",
+          "name": "学习一个新概念",
+          "type": "reading",
+          "target": 1,
+          "reward": 50,
+          "difficulty": "D",
+          "status": "pending",
+          "current": 0
+        },
+        "code": {
+          "id": "code",
+          "name": "专注编码 30 分钟",
+          "type": "coding",
+          "target": 30,
+          "reward": 60,
+          "difficulty": "D",
+          "status": "pending",
+          "current": 0
+        },
+        "emergency_exercise": {
+          "id": "emergency_exercise",
+          "name": "⚡ 运动 30 分钟",
+          "type": "exercise",
+          "target": 30,
+          "reward": 60,
+          "difficulty": "C",
+          "status": "pending",
+          "current": 0
+        }
+      }
+    },
+    "dailyLog": [],
+    "logs": [],
+    "username": "johnweak"
+  },
+  "createdAt": "2026-05-09T12:35:02.098763",
+  "lastLogin": "2026-05-09T12:35:02.158966"
+}

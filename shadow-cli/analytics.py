@@ -28,12 +28,44 @@ def _get_week_range(week_offset: int = 0) -> tuple[date, date]:
     sunday = monday + timedelta(days=6)
     return monday, sunday
 
+def _parse_date(value: str) -> date | None:
+    """Parse an ISO date string, returning None if malformed.
+
+    Mirrors the try/except tolerance already used in get_insights' day_exp loop:
+    a single malformed entry in the daily log must not crash reports/reminders.
+    """
+    try:
+        return date.fromisoformat(value)
+    except (ValueError, TypeError):
+        return None
+
+def _parse_datetime_date(value: str) -> date | None:
+    """Parse an ISO datetime/date string, returning the date part or None if malformed.
+
+    Used for fields like player.createdAt which are stored as full datetime strings;
+    falls back to None so callers can apply a sensible default.
+    """
+    try:
+        return datetime.fromisoformat(value).date()
+    except (ValueError, TypeError):
+        return None
+
 def _filter_week(daily_log: list[dict], week_start: date, week_end: date) -> list[dict]:
-    return [e for e in daily_log if week_start <= date.fromisoformat(e["date"]) <= week_end]
+    result = []
+    for e in daily_log:
+        d = _parse_date(e.get("date", ""))
+        if d is not None and week_start <= d <= week_end:
+            result.append(e)
+    return result
 
 def _filter_days(daily_log: list[dict], days: int) -> list[dict]:
     cutoff = date.today() - timedelta(days=days)
-    return [e for e in daily_log if date.fromisoformat(e["date"]) >= cutoff]
+    result = []
+    for e in daily_log:
+        d = _parse_date(e.get("date", ""))
+        if d is not None and d >= cutoff:
+            result.append(e)
+    return result
 
 def _actions_by_type(entries: list[dict]) -> dict[str, int]:
     result: dict[str, int] = {}
@@ -43,6 +75,20 @@ def _actions_by_type(entries: list[dict]) -> dict[str, int]:
             result[t] = result.get(t, 0) + a["quantity"]
     return result
 
+def _latest_activity_date(daily_log: list[dict]) -> date | None:
+    """Return the date of the most recent parseable daily-log entry, or None.
+
+    Selects by parsed date rather than by raw string: a malformed entry that
+    happens to sort high lexically (e.g. "not-a-date") must not be mistaken for
+    the latest activity and suppress idle detection.
+    """
+    latest: date | None = None
+    for e in daily_log:
+        d = _parse_date(e.get("date", ""))
+        if d is not None and (latest is None or d > latest):
+            latest = d
+    return latest
+
 def get_weekly_report(player: dict, week_offset: int = 0) -> dict:
     """Generate a weekly report."""
     monday, sunday = _get_week_range(week_offset)
@@ -50,12 +96,21 @@ def get_weekly_report(player: dict, week_offset: int = 0) -> dict:
     week_entries = _filter_week(daily_log, monday, sunday)
     total_exp = sum(e.get("totalExp", 0) for e in week_entries)
     total_gold = sum(e.get("totalGold", 0) for e in week_entries)
-    best_day = max(week_entries, key=lambda e: e.get("totalExp", 0))["date"] if week_entries else None
+    best_entry = max(week_entries, key=lambda e: e.get("totalExp", 0)) if week_entries else None
+    if best_entry is not None:
+        best_parsed = _parse_date(best_entry["date"])
+        # Normalize to ISO form so best_day stays consistent with the daily_data
+        # keys even when the log stores non-canonical dates (e.g. "20260824").
+        best_day = best_parsed.isoformat() if best_parsed else best_entry["date"]
+    else:
+        best_day = None
     daily_data: list[tuple[str, int]] = []
     for i in range(7):
         d = monday + timedelta(days=i)
         ds = d.isoformat()
-        val = next((e.get("totalExp", 0) for e in week_entries if e["date"] == ds), 0)
+        # Match by parsed date, not raw string, so any date form that
+        # _filter_week accepted maps to its correct weekday slot.
+        val = next((e.get("totalExp", 0) for e in week_entries if _parse_date(e["date"]) == d), 0)
         daily_data.append((ds, val))
     prev_mon, prev_sun = _get_week_range(week_offset + 1)
     prev_entries = _filter_week(daily_log, prev_mon, prev_sun)
@@ -66,7 +121,7 @@ def get_weekly_report(player: dict, week_offset: int = 0) -> dict:
     else:
         trend = "up" if total_exp > 0 else "stable"
     missing = [monday + timedelta(days=i) for i in range(7)
-               if not any(e["date"] == (monday + timedelta(days=i)).isoformat() for e in week_entries)]
+               if not any(_parse_date(e["date"]) == (monday + timedelta(days=i)) for e in week_entries)]
     active_days = len(week_entries)
     avg = total_exp / active_days if active_days else 0
     return {
@@ -96,11 +151,16 @@ def get_monthly_report(player: dict, month_offset: int = 0) -> dict:
     days_in = (date(y, m % 12 + 1, 1) if m < 12 else date(y + 1, 1, 1)) - date(y, m, 1)
     days_in_month = days_in.days
     daily_log = player.get("dailyLog", [])
-    entries = [e for e in daily_log if e["date"].startswith(month_str)]
+    entries = [e for e in daily_log
+               if (d := _parse_date(e.get("date", ""))) is not None and d.strftime("%Y-%m") == month_str]
     total_exp = sum(e.get("totalExp", 0) for e in entries)
     total_gold = sum(e.get("totalGold", 0) for e in entries)
-    best_day = max(entries, key=lambda e: e.get("totalExp", 0))["date"] if entries else None
-    worst_day = min(entries, key=lambda e: e.get("totalExp", 0))["date"] if entries else None
+    best_entry = max(entries, key=lambda e: e.get("totalExp", 0)) if entries else None
+    worst_entry = min(entries, key=lambda e: e.get("totalExp", 0)) if entries else None
+    # Normalize to ISO form so best_day/worst_day stay consistent with the
+    # weekly report even when the log stores non-canonical dates.
+    best_day = _parse_date(best_entry["date"]).isoformat() if best_entry else None
+    worst_day = _parse_date(worst_entry["date"]).isoformat() if worst_entry else None
     first_day = date(y, m, 1)
     weekly_trend: list[int] = []
     cur = first_day
@@ -139,7 +199,9 @@ def get_type_breakdown(player: dict, days: int = 30) -> dict:
                 type_map[t] = {"total_quantity": 0, "total_exp": 0, "days": set()}
             type_map[t]["total_quantity"] += a["quantity"]
             type_map[t]["total_exp"] += a["exp"]
-            type_map[t]["days"].add(e["date"])
+            # Dedup by parsed date (ISO form) so the same actual day stored in
+            # alternate forms (e.g. "20260824" vs "2026-08-24") counts once.
+            type_map[t]["days"].add(_parse_date(e["date"]).isoformat())
     types = []
     for t, v in type_map.items():
         da = len(v["days"])
@@ -164,9 +226,17 @@ def get_streak_history(player: dict) -> dict:
         s = e.get("streak", 0)
         if s > best_streak:
             best_streak = s
-            best_streak_date = e["date"]
-    created = datetime.fromisoformat(player.get("createdAt", date.today().isoformat())).date()
-    days_since = (date.today() - created).days + 1
+            parsed = _parse_date(e.get("date", ""))
+            # Normalize to ISO form; fall back to the raw value if unparseable.
+            best_streak_date = parsed.isoformat() if parsed else e.get("date", "")
+    created = _parse_datetime_date(player.get("createdAt", date.today().isoformat()))
+    if created is None:
+        # Malformed createdAt (corrupted state) — fall back to today so the
+        # report still renders instead of crashing.
+        created = date.today()
+    # Clamp to >= 1: a future-dated createdAt (clock skew / bad import) must not
+    # yield a negative days_since and a nonsensical completion_rate.
+    days_since = max(1, (date.today() - created).days + 1)
     active_days = len(daily_log)
     rate = round(active_days / days_since * 100, 1) if days_since else 0
     return {
@@ -214,17 +284,14 @@ def get_insights(player: dict) -> list[str]:
     day_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
     day_exp: list[int] = [0] * 7
     for e in daily_log:
-        try:
-            d = date.fromisoformat(e["date"]).weekday()
-            day_exp[d] += e.get("totalExp", 0)
-        except (ValueError, KeyError):
-            pass
+        d = _parse_date(e.get("date", ""))
+        if d is not None:
+            day_exp[d.weekday()] += e.get("totalExp", 0)
     if any(day_exp):
         best_d = day_names[day_exp.index(max(day_exp))]
         insights.append(f"你的最佳活动日是{best_d}，尝试在{best_d}安排重要任务")
-    if daily_log:
-        last = max(daily_log, key=lambda e: e["date"])
-        last_date = date.fromisoformat(last["date"])
+    last_date = _latest_activity_date(daily_log)
+    if last_date is not None:
         idle = (date.today() - last_date).days
         if idle >= 2:
             insights.append(f"距离上次活动已过去 {idle} 天，记得回来打卡！")
@@ -243,14 +310,13 @@ def get_smart_reminders(player: dict) -> list[str]:
     if not daily_log:
         return ["先完成一次打卡，系统会根据你的习惯生成更精准的提醒"]
 
-    last = max(daily_log, key=lambda e: e["date"])
-    last_date = date.fromisoformat(last["date"])
-    idle_days = (date.today() - last_date).days
-
-    if idle_days >= 1:
-        reminders.append(f"你已经 {idle_days} 天没有记录活动了，建议先补一次最容易完成的任务")
-    if idle_days >= 3:
-        reminders.append("当前间隔偏长，今天优先完成一个低门槛任务，先把节奏拉回来")
+    last_date = _latest_activity_date(daily_log)
+    if last_date is not None:
+        idle_days = (date.today() - last_date).days
+        if idle_days >= 1:
+            reminders.append(f"你已经 {idle_days} 天没有记录活动了，建议先补一次最容易完成的任务")
+        if idle_days >= 3:
+            reminders.append("当前间隔偏长，今天优先完成一个低门槛任务，先把节奏拉回来")
 
     recent_7d = _filter_days(daily_log, 7)
     recent_types = set()
@@ -326,7 +392,10 @@ def format_weekly_report(player: dict, week_offset: int = 0) -> str:
     if r["actions_by_type"]:
         for t, qty in sorted(r["actions_by_type"].items(), key=lambda x: x[1], reverse=True):
             te = sum(a["exp"] for e in week_entries for a in e.get("actions", []) if a["type"] == t)
-            dt = len(set(e["date"] for e in week_entries for a in e.get("actions", []) if a["type"] == t))
+            # Dedup by parsed date so the same day stored in alternate forms
+            # (e.g. ISO vs compact) counts once, matching get_type_breakdown.
+            dt = len({_parse_date(e["date"]).isoformat()
+                      for e in week_entries for a in e.get("actions", []) if a["type"] == t})
             lines.append(f"  {t}:  {te} EXP ({dt} 天)")
         lines.append("\u2500" * 37)
     chart_data = [(date.fromisoformat(ds).strftime("%a"), val) for ds, val in r["daily_data"]]

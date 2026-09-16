@@ -278,7 +278,7 @@ Phase 9  · 体验修复 + 核心路径优化                          →  ~30h
 - [x] "我的状态" → 返回 RPG 风格面板
 - [x] "/daily" → 返回今日任务列表
 - [x] Git commit 自动触发通知消息
-- [ ] 手机浏览器也能正常使用（NextChat 自带响应式）
+- [x] 手机浏览器也能正常使用（NextChat 自带响应式）
 
 ### 6.6 技术栈
 - Chat UI：NextChat (Docker 部署)

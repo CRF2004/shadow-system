@@ -70,6 +70,23 @@ class TestAuthRegistration:
         with pytest.raises(ValueError, match="至少 4 个字符"):
             create_user("user", "abc")
 
+    def test_create_user_non_string_credentials_raise_value_error(self, isolated_state):
+        """Non-string username/password raise ValueError, not AttributeError/TypeError.
+
+        A JSON number/list/null in an HTTP body used to reach ``username.lower()``
+        (AttributeError) or ``len(password)`` (TypeError); the web layer only
+        catches ValueError, so the connection was dropped with no response.
+        """
+        from auth import create_user
+        from config import STATE_DIR
+
+        for username, password in [(123, "abcd"), (None, "abcd"),
+                                   (["a", "b"], "abcd"), ("validname", 1234)]:
+            with pytest.raises(ValueError):
+                create_user(username, password)
+        # Nothing was written for the rejected records.
+        self.assertFalse((STATE_DIR / "users" / "validname.json").exists())
+
     def test_password_not_stored_plaintext(self, isolated_state):
         from auth import create_user
 
@@ -105,6 +122,41 @@ class TestAuthentication:
 
         token = authenticate("ghost", "pass")
         assert token is None
+
+    def test_login_non_string_credentials_return_none(self, isolated_state):
+        """Non-string credentials are a failed login (None → 401), not a crash."""
+        from auth import authenticate, create_user
+
+        create_user("typuser", "pass1234")
+        assert authenticate(123, "pass1234") is None
+        assert authenticate("typuser", 1234) is None
+        assert authenticate(["typuser"], "pass1234") is None
+        assert authenticate(None, None) is None
+        # String credentials are unaffected.
+        assert authenticate("typuser", "pass1234") is not None
+
+    def test_authenticate_corrupt_user_file_returns_none(self, isolated_state):
+        """A corrupted user file fails the login instead of raising out of the handler.
+
+        Pre-fix, ``json.loads`` raised JSONDecodeError and a record without
+        pwHash/salt raised KeyError, both escaping to the HTTP layer.
+        """
+        from auth import authenticate
+        from config import STATE_DIR
+
+        users_dir = STATE_DIR / "users"
+        users_dir.mkdir(parents=True, exist_ok=True)
+        (users_dir / "corruptuser.json").write_text("{not valid json",
+                                                    encoding="utf-8")
+        (users_dir / "nohashuser.json").write_text(
+            json.dumps({"id": "nohashuser", "player": {}}), encoding="utf-8")
+        (users_dir / "badtypeuser.json").write_text(
+            json.dumps({"id": "badtypeuser", "pwHash": 123, "salt": None,
+                        "player": {}}), encoding="utf-8")
+
+        assert authenticate("corruptuser", "pass1234") is None
+        assert authenticate("nohashuser", "pass1234") is None
+        assert authenticate("badtypeuser", "pass1234") is None
 
     def test_token_expiry(self, isolated_state, monkeypatch):
         from auth import create_user, authenticate, _verify_token
@@ -158,6 +210,35 @@ class TestTokenOperations:
         player = get_player(token)
         assert player is not None
         assert player["name"] == "Player One"
+
+    def test_corrupt_user_record_does_not_raise(self, isolated_state):
+        """Corrupted user records degrade to None/False instead of raising.
+
+        Missing "id" made save_player_with_token raise KeyError, and a non-dict
+        "player" made get_player hand a list back to callers that index it.
+        """
+        import time as _time
+        from auth import _sign_payload, get_player, get_current_user, save_player_with_token
+        from config import STATE_DIR
+
+        users_dir = STATE_DIR / "users"
+        users_dir.mkdir(parents=True, exist_ok=True)
+        (users_dir / "noiduser.json").write_text(
+            json.dumps({"player": {"level": 1}}), encoding="utf-8")
+        (users_dir / "badplayeruser.json").write_text(
+            json.dumps({"id": "badplayeruser", "player": [1, 2, 3]}), encoding="utf-8")
+
+        def token_for(uid):
+            return _sign_payload({"sub": uid, "iat": _time.time(),
+                                  "exp": _time.time() + 3600})
+
+        noid_token = token_for("noiduser")
+        assert get_current_user(noid_token)["player"] == {"level": 1}
+        assert save_player_with_token(noid_token, {"level": 2}) is False
+
+        bad_token = token_for("badplayeruser")
+        assert get_player(bad_token) is None
+        assert save_player_with_token(bad_token, {"level": 2}) is True
 
     def test_refresh_token(self, isolated_state):
         from auth import create_user, authenticate, refresh_token
@@ -454,6 +535,26 @@ class TestGuildTasks:
         assert result["success"] is False
         assert "已有" in result["message"]
 
+    def test_start_task_corrupt_history_no_crash(self, isolated_state):
+        """Corrupted taskHistory completedAt must not crash cooldown check."""
+        import json
+        from auth import create_user, get_player, authenticate
+        from guild import create_guild, start_guild_task, _guild_file
+
+        create_user("leader1", "pass1234")
+        token = authenticate("leader1", "pass1234")
+        player = get_player(token)
+        create_guild(player, "TaskGuild", "leader1")
+
+        # Corrupt the last taskHistory completedAt (valid JSON, malformed ISO).
+        path = _guild_file("taskguild")
+        guild = json.loads(path.read_text(encoding="utf-8"))
+        guild["taskHistory"] = [{"completedAt": "not-a-datetime"}]
+        path.write_text(json.dumps(guild, ensure_ascii=False), encoding="utf-8")
+
+        result = start_guild_task("taskguild", "leader1")
+        assert result["success"] is True
+
 
 class TestGuildBossBattles:
     """Test guild boss battle system."""
@@ -470,6 +571,31 @@ class TestGuildBossBattles:
         result = start_guild_battle("smallguild", "leader1")
         assert result["success"] is False
         assert "至少需要" in result["message"]
+
+    def test_start_battle_corrupt_history_no_crash(self, isolated_state):
+        """Corrupted battleHistory endedAt must not crash cooldown check."""
+        import json
+        from auth import create_user, get_player, authenticate
+        from guild import create_guild, join_guild, start_guild_battle, _guild_file
+
+        create_user("leader1", "pass1234")
+        create_user("member1", "pass1234", "Member One")
+        create_user("member2", "pass1234", "Member Two")
+        tokens = {n: authenticate(n, "pass1234") for n in ["leader1", "member1", "member2"]}
+        players = {n: get_player(t) for n, t in tokens.items()}
+
+        create_guild(players["leader1"], "BattleGuild", "leader1")
+        assert join_guild("battleguild", "member1", players["member1"])["success"]
+        assert join_guild("battleguild", "member2", players["member2"])["success"]
+
+        # Corrupt the last battleHistory endedAt (valid JSON, malformed ISO).
+        path = _guild_file("battleguild")
+        guild = json.loads(path.read_text(encoding="utf-8"))
+        guild["battleHistory"] = [{"endedAt": "garbage"}]
+        path.write_text(json.dumps(guild, ensure_ascii=False), encoding="utf-8")
+
+        result = start_guild_battle("battleguild", "leader1")
+        assert result["success"] is True
 
 
 class TestGuildRankings:

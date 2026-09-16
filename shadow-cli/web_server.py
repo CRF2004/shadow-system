@@ -12,6 +12,7 @@ Serves UI  at localhost:8080/
 
 import argparse
 import json
+import math
 import os
 import sys
 import uuid
@@ -62,7 +63,30 @@ from analytics import (
 )
 from events import event_bus, broadcast, format_sse, format_heartbeat
 
-VERSION = "0.8.0"
+VERSION = config.VERSION
+
+
+def _coerce_int(value):
+    """Try to coerce a raw JSON value to an int; return None if impossible."""
+    try:
+        return int(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _coerce_float(value):
+    """Try to coerce a raw JSON value to a finite float; return None if impossible.
+
+    NaN/Infinity are rejected: JSON permits the non-standard ``Infinity``/``NaN``
+    literals and ``float("1e999")`` overflows to inf without raising, so without
+    this check a value like ``{"sleep": 1e999}`` reaches int() in the health EXP
+    calculation, raises OverflowError and drops the connection with no response.
+    """
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return result if math.isfinite(result) else None
 
 
 class ShadowAPIHandler(SimpleHTTPRequestHandler):
@@ -86,14 +110,33 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
 
     def _read_body(self) -> dict:
-        length = int(self.headers.get("Content-Length", 0))
-        if length == 0:
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except (TypeError, ValueError):
+            # Malformed Content-Length header: treat as no body instead of
+            # letting ValueError escape and drop the connection.
+            length = 0
+        if length <= 0:
             return {}
         raw = self.rfile.read(length)
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
             return {}
+
+    def _read_object_body(self):
+        """Read the request body and require a JSON object.
+
+        Returns None after sending a clean 400 when the body is valid JSON but
+        not an object (list/string/number/bool/null). Without this guard,
+        ``body.get(...)`` raises AttributeError and the connection is dropped
+        with no HTTP response at all.
+        """
+        body = self._read_body()
+        if not isinstance(body, dict):
+            self._send_json({"success": False, "message": "请求体必须是 JSON 对象"}, 400)
+            return None
+        return body
 
     def _load_player(self) -> dict:
         token = self._extract_token()
@@ -445,8 +488,14 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_record(self):
         body = self._read_body()
+        if not isinstance(body, dict):
+            self._send_json({"success": False, "message": "请求体必须是 JSON 对象"}, 400)
+            return
         action_type = body.get("action", body.get("type", body.get("action_type", "")))
-        quantity = int(body.get("quantity", body.get("amount", 1)))
+        quantity = _coerce_int(body.get("quantity", body.get("amount", 1)))
+        if quantity is None:
+            self._send_json({"success": False, "message": "无效数量"}, 400)
+            return
 
         player = self._load_player()
         result = self._process_activity(player, action_type, quantity, source=body.get("source", "record"))
@@ -490,9 +539,8 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
             action_type = item.get("action", item.get("type", item.get("action_type", "")))
             quantity_raw = item.get("quantity", item.get("amount", 1))
-            try:
-                quantity = int(float(quantity_raw))
-            except (TypeError, ValueError):
+            quantity = _coerce_int(quantity_raw)
+            if quantity is None:
                 errors.append({"index": index, "message": f"无效数量: {quantity_raw}"})
                 continue
 
@@ -548,7 +596,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         })
 
     def _api_summon(self):
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         soldier_type = body.get("type") or None
         player = self._load_player()
         result = summon_soldier(player, soldier_type)
@@ -556,7 +606,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         self._send_json(result)
 
     def _api_legion(self):
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         scale = body.get("scale", "medium")
         player = self._load_player()
         result = summon_legion(player, scale)
@@ -579,7 +631,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         self._send_json({"dungeons": available})
 
     def _api_enter_dungeon(self):
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         dungeon_id = body.get("id", body.get("dungeon_id", ""))
         player = self._load_player()
         available_ids = [d["id"] for d in get_available_dungeons(player)]
@@ -606,7 +660,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         self._send_json({"items": items, "gold": player.get("gold", 0)})
 
     def _api_buy(self):
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         item_id = body.get("id", body.get("item_id", ""))
         player = self._load_player()
         result = buy_item(player, item_id)
@@ -615,7 +671,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         self._send_json(result)
 
     def _api_sell(self):
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         item_id = body.get("id", body.get("item_id", ""))
         player = self._load_player()
         result = sell_item(player, item_id)
@@ -647,9 +705,15 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_health(self):
         body = self._read_body()
-        steps = int(body.get("steps", 0))
-        exercise_min = int(body.get("exercise", body.get("exercise_min", 0)))
-        sleep_hours = float(body.get("sleep", body.get("sleep_hours", 0)))
+        if not isinstance(body, dict):
+            self._send_json({"success": False, "message": "请求体必须是 JSON 对象"}, 400)
+            return
+        steps = _coerce_int(body.get("steps", 0))
+        exercise_min = _coerce_int(body.get("exercise", body.get("exercise_min", 0)))
+        sleep_hours = _coerce_float(body.get("sleep", body.get("sleep_hours", 0)))
+        if steps is None or exercise_min is None or sleep_hours is None:
+            self._send_json({"success": False, "message": "无效数字 (steps/exercise/sleep 需为数字)"}, 400)
+            return
         player = self._load_player()
         result = record_health_manual(player, steps, exercise_min, sleep_hours)
         if result["success"]:
@@ -659,15 +723,24 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_health_summary(self):
         player = self._load_player()
-        days = int(self._get_query_param("days", "7"))
+        days = self._query_int("days", 7)
+        if days is None:
+            self._send_json({"success": False, "message": "无效数字 (days 需为整数)"}, 400)
+            return
         summary = get_health_summary(player, days)
         self._send_json(summary)
 
     def _api_reading(self):
         body = self._read_body()
-        minutes = int(body.get("minutes", 0))
-        pages = int(body.get("pages", 0))
+        if not isinstance(body, dict):
+            self._send_json({"success": False, "message": "请求体必须是 JSON 对象"}, 400)
+            return
+        minutes = _coerce_int(body.get("minutes", 0))
+        pages = _coerce_int(body.get("pages", 0))
         book = body.get("book", "")
+        if minutes is None or pages is None:
+            self._send_json({"success": False, "message": "无效数字 (minutes/pages 需为数字)"}, 400)
+            return
         player = self._load_player()
         result = record_reading_manual(player, minutes, pages, book)
         if result["success"]:
@@ -677,14 +750,23 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_reading_summary(self):
         player = self._load_player()
-        days = int(self._get_query_param("days", "7"))
+        days = self._query_int("days", 7)
+        if days is None:
+            self._send_json({"success": False, "message": "无效数字 (days 需为整数)"}, 400)
+            return
         summary = get_reading_summary(player, days)
         self._send_json(summary)
 
     def _api_browser(self):
         body = self._read_body()
+        if not isinstance(body, dict):
+            self._send_json({"success": False, "message": "请求体必须是 JSON 对象"}, 400)
+            return
         site = body.get("site", "")
-        minutes = int(body.get("minutes", 0))
+        minutes = _coerce_int(body.get("minutes", 0))
+        if minutes is None:
+            self._send_json({"success": False, "message": "无效数字 (minutes 需为数字)"}, 400)
+            return
         player = self._load_player()
         result = record_browser_manual(player, site, minutes)
         if result["success"]:
@@ -694,14 +776,23 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_browser_summary(self):
         player = self._load_player()
-        days = int(self._get_query_param("days", "7"))
+        days = self._query_int("days", 7)
+        if days is None:
+            self._send_json({"success": False, "message": "无效数字 (days 需为整数)"}, 400)
+            return
         summary = get_browser_summary(player, days)
         self._send_json(summary)
 
     def _api_allocate_stat(self):
         body = self._read_body()
+        if not isinstance(body, dict):
+            self._send_json({"success": False, "message": "请求体必须是 JSON 对象"}, 400)
+            return
         stat = body.get("stat", "")
-        amount = int(body.get("amount", 0))
+        amount = _coerce_int(body.get("amount", 0))
+        if amount is None:
+            self._send_json({"success": False, "message": "无效数字 (amount 需为数字)"}, 400)
+            return
         player = self._load_player()
         err = allocate_stat(player, stat, amount)
         if err:
@@ -711,7 +802,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         self._send_json({"success": True, "stats": player["stats"], "statPoints": player["statPoints"]})
 
     def _api_scan_git(self):
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         path = body.get("path", ".")
         git_root = get_git_root(path)
         if not git_root:
@@ -737,7 +830,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         self._send_json(result)
 
     def _api_scan_files(self):
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         path = body.get("path", ".")
         player = self._load_player()
         result = scan_files_and_grant(player, path)
@@ -753,7 +848,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         self._send_json(result)
 
     def _api_integration_enable(self):
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         target = body.get("target", "")
         player = self._load_player()
         settings = player.get("integrationSettings", {})
@@ -771,7 +868,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
         self._send_json({"success": True, "message": f"已启用 {target}"})
 
     def _api_integration_disable(self):
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         target = body.get("target", "")
         player = self._load_player()
         settings = player.get("integrationSettings", {})
@@ -887,19 +986,40 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
                         return v
         return default
 
+    def _query_int(self, key: str, default: int):
+        """Parse an int query param safely; return None when malformed.
+
+        Mirrors the POST-body _coerce_int contract so GET endpoints with a
+        non-numeric param return a clean 400 instead of raising ValueError
+        and dropping the connection.
+        """
+        raw = self._get_query_param(key)
+        if raw == "":
+            return default
+        return _coerce_int(raw)
+
     def _api_chat(self):
         """OpenAI-compatible chat completion endpoint."""
         from chat_processor import parse_message, execute_action, build_chat_response, stream_response
 
         body = self._read_body()
+        if not isinstance(body, dict):
+            self._send_json({"error": "Request body must be a JSON object"}, 400)
+            return
         messages = body.get("messages", [])
         stream = body.get("stream", False)
 
-        # Extract the last user message
+        # Extract the last user message. Tolerate malformed bodies: messages
+        # must be a list, and only dict entries with a string role/content count.
+        if not isinstance(messages, list):
+            self._send_json({"error": "Invalid messages format: must be a list"}, 400)
+            return
         user_text = ""
         for msg in reversed(messages):
-            if msg.get("role") == "user":
-                user_text = msg.get("content", "")
+            if not isinstance(msg, dict):
+                continue
+            if msg.get("role") == "user" and isinstance(msg.get("content"), str):
+                user_text = msg["content"]
                 break
 
         if not user_text:
@@ -936,7 +1056,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_register(self):
         """Register a new user."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         username = body.get("username", "")
         password = body.get("password", "")
         display_name = body.get("displayName", username)
@@ -957,7 +1079,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_login(self):
         """Authenticate and get token."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         username = body.get("username", "")
         password = body.get("password", "")
 
@@ -991,7 +1115,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_guild_create(self):
         """Create a guild."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         guild_name = body.get("name", "")
         username = self._get_username() or "fallback"
         player = self._load_player()
@@ -1011,7 +1137,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_guild_disband(self):
         """Disband a guild (leader only)."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         guild_id = body.get("guildId", body.get("guild_id", ""))
         username = self._get_username() or "fallback"
         result = disband_guild(guild_id, username)
@@ -1019,7 +1147,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_guild_join(self):
         """Join a guild."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         guild_id = body.get("guildId", body.get("guild_id", ""))
         username = self._get_username() or "fallback"
         player = self._load_player()
@@ -1031,7 +1161,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_guild_leave(self):
         """Leave a guild."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         guild_id = body.get("guildId", body.get("guild_id", ""))
         username = self._get_username() or "fallback"
         result = leave_guild(guild_id, username)
@@ -1039,7 +1171,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_guild_info(self):
         """Get guild details."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         guild_id = body.get("guildId", body.get("guild_id", ""))
         guild = get_guild(guild_id)
         if not guild:
@@ -1094,14 +1228,18 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_member_rankings(self):
         """Get member rankings for a guild."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         guild_id = body.get("guildId", body.get("guild_id", ""))
         rankings = get_member_rankings(guild_id)
         self._send_json({"rankings": rankings})
 
     def _api_guild_transfer(self):
         """Transfer guild leadership."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         guild_id = body.get("guildId", body.get("guild_id", ""))
         new_leader = body.get("newLeader", body.get("new_leader", ""))
         username = self._get_username() or "fallback"
@@ -1110,7 +1248,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_guild_kick(self):
         """Kick a member."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         guild_id = body.get("guildId", body.get("guild_id", ""))
         target = body.get("target", "")
         username = self._get_username() or "fallback"
@@ -1119,7 +1259,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_guild_promote(self):
         """Promote a member to officer."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         guild_id = body.get("guildId", body.get("guild_id", ""))
         target = body.get("target", "")
         username = self._get_username() or "fallback"
@@ -1128,7 +1270,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_guild_start_task(self):
         """Start a guild task."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         guild_id = body.get("guildId", body.get("guild_id", ""))
         username = self._get_username() or "fallback"
         result = start_guild_task(guild_id, username)
@@ -1136,10 +1280,15 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_guild_contribute(self):
         """Contribute to guild task."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         guild_id = body.get("guildId", body.get("guild_id", ""))
         action_type = body.get("actionType", body.get("action_type", ""))
-        quantity = int(body.get("quantity", 1))
+        quantity = _coerce_int(body.get("quantity", 1))
+        if quantity is None:
+            self._send_json({"success": False, "message": "无效数字 (quantity 需为数字)"}, 400)
+            return
         username = self._get_username() or "fallback"
         result = contribute_to_guild_task(guild_id, username, action_type, quantity)
 
@@ -1161,7 +1310,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_guild_start_battle(self):
         """Start a guild boss battle."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         guild_id = body.get("guildId", body.get("guild_id", ""))
         username = self._get_username() or "fallback"
         result = start_guild_battle(guild_id, username)
@@ -1176,10 +1327,15 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_guild_deal_damage(self):
         """Deal damage to guild boss."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         guild_id = body.get("guildId", body.get("guild_id", ""))
         action_type = body.get("actionType", body.get("action_type", ""))
-        quantity = int(body.get("quantity", 1))
+        quantity = _coerce_int(body.get("quantity", 1))
+        if quantity is None:
+            self._send_json({"success": False, "message": "无效数字 (quantity 需为数字)"}, 400)
+            return
         username = self._get_username() or "fallback"
         result = deal_boss_damage(guild_id, username, action_type, quantity)
 
@@ -1204,10 +1360,10 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_weekly_report(self):
         """Get weekly analytics report."""
-        import urllib.parse
-        parsed = urllib.parse.urlparse(self.path)
-        params = urllib.parse.parse_qs(parsed.query)
-        offset = int(params.get("offset", [0])[0])
+        offset = self._query_int("offset", 0)
+        if offset is None:
+            self._send_json({"success": False, "message": "无效数字 (offset 需为整数)"}, 400)
+            return
         player = self._load_player()
         report = get_weekly_report(player, offset)
         # Convert daily_data tuples to list of dicts for JSON
@@ -1217,10 +1373,10 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_monthly_report(self):
         """Get monthly analytics report."""
-        import urllib.parse
-        parsed = urllib.parse.urlparse(self.path)
-        params = urllib.parse.parse_qs(parsed.query)
-        offset = int(params.get("offset", [0])[0])
+        offset = self._query_int("offset", 0)
+        if offset is None:
+            self._send_json({"success": False, "message": "无效数字 (offset 需为整数)"}, 400)
+            return
         player = self._load_player()
         report = get_monthly_report(player, offset)
         self._send_json(report)
@@ -1245,10 +1401,10 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_type_breakdown(self):
         """Get activity type breakdown."""
-        import urllib.parse
-        parsed = urllib.parse.urlparse(self.path)
-        params = urllib.parse.parse_qs(parsed.query)
-        days = int(params.get("days", [30])[0])
+        days = self._query_int("days", 30)
+        if days is None:
+            self._send_json({"success": False, "message": "无效数字 (days 需为整数)"}, 400)
+            return
         player = self._load_player()
         breakdown = get_type_breakdown(player, days)
         self._send_json(breakdown)
@@ -1292,7 +1448,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_onboard_configure(self):
         """Generate skill configs from descriptions (LLM or keyword fallback)."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         descriptions = body.get("descriptions", [])
         preset = body.get("preset")
 
@@ -1318,7 +1476,9 @@ class ShadowAPIHandler(SimpleHTTPRequestHandler):
 
     def _api_onboard_save(self):
         """Save skill configuration and mark player as onboarded."""
-        body = self._read_body()
+        body = self._read_object_body()
+        if body is None:
+            return
         skills = body.get("skills", [])
         template_used = body.get("template_used")
 

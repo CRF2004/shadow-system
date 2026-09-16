@@ -5,11 +5,25 @@ Import reading data from WeChat Read (微信读书) exports and record EXP.
 
 import csv
 import json
+import math
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import config
 from engine import add_exp, check_achievements
+
+
+def _finite_int(value) -> int:
+    """Coerce to int, rejecting non-finite floats (NaN/Infinity).
+
+    json.load accepts the non-standard ``Infinity``/``NaN`` literals; ``int()``
+    on those raises OverflowError (infinity) or ValueError (NaN), which would
+    abort the whole import. Raising ValueError here lets the existing
+    per-entry (ValueError, TypeError) skip treat it like any other bad number.
+    """
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(f"non-finite number: {value!r}")
+    return int(value)
 
 
 def _calculate_reading_exp(minutes: int = 0, pages: int = 0) -> dict:
@@ -99,8 +113,13 @@ def import_reading_json(player: dict, file_path: str) -> dict:
             continue
 
         date_str = entry.get("date", entry.get("dateTime", entry.get("time", entry.get("日期", ""))))
-        minutes = int(entry.get("minutes", entry.get("readingMinutes", entry.get("阅读时长", entry.get("分钟", 0)))))
-        pages = int(entry.get("pages", entry.get("pagesRead", entry.get("页数", entry.get("页", 0)))))
+        try:
+            minutes = _finite_int(entry.get("minutes", entry.get("readingMinutes", entry.get("阅读时长", entry.get("分钟", 0)))))
+            pages = _finite_int(entry.get("pages", entry.get("pagesRead", entry.get("页数", entry.get("页", 0)))))
+        except (ValueError, TypeError):
+            # Malformed numeric field in an external export: skip this entry
+            # instead of aborting the whole import (CSV path already does this).
+            continue
         book_title = entry.get("book", entry.get("bookTitle", entry.get("书名", entry.get("title", ""))))
 
         if not date_str:
@@ -164,8 +183,8 @@ def import_reading_csv(player: dict, file_path: str) -> dict:
 
         date_str = normalized.get("date", normalized.get("日期", ""))
         try:
-            minutes = int(normalized.get("minutes", normalized.get("阅读时长", normalized.get("分钟", normalized.get("reading_minutes", 0)))))
-            pages = int(normalized.get("pages", normalized.get("页数", normalized.get("页", 0))))
+            minutes = _finite_int(normalized.get("minutes", normalized.get("阅读时长", normalized.get("分钟", normalized.get("reading_minutes", 0)))))
+            pages = _finite_int(normalized.get("pages", normalized.get("页数", normalized.get("页", 0))))
         except (ValueError, TypeError):
             continue
 

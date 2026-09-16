@@ -1,0 +1,37 @@
+{
+  "dungeon_id": "skill_daily_guitar",
+  "dungeon_name": "音律吉他副本",
+  "difficulty": "E",
+  "created_at": "2026-05-10T00:06:28.744186",
+  "expires_at": "2026-05-11T00:06:28.744217",
+  "tasks": [
+    {
+      "name": "练习 吉他 (18分钟)",
+      "type": "guitar",
+      "target": 18,
+      "current": 0,
+      "completed": false,
+      "reward": 10
+    },
+    {
+      "name": "专注 吉他 (24分钟)",
+      "type": "guitar",
+      "target": 24,
+      "current": 0,
+      "completed": false,
+      "reward": 15
+    },
+    {
+      "name": "深度练习 吉他 (30分钟)",
+      "type": "guitar",
+      "target": 30,
+      "current": 0,
+      "completed": false,
+      "reward": 25
+    }
+  ],
+  "total_reward": 50,
+  "completed": false,
+  "failed": false,
+  "_file": "/home/srp_member/.claude/shadow-state/quests/dungeon_skill_daily_guitar_2026-05-10_1778342788.json"
+}

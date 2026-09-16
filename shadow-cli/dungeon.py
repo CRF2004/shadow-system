@@ -429,9 +429,16 @@ def progress_dungeon(player: dict, action_type: str, quantity: int) -> dict:
                 with open(f, "r", encoding="utf-8") as fh:
                     inst = json.load(fh)
                 if not inst.get("completed") and not inst.get("failed"):
-                    # Check if not expired
-                    expires = datetime.fromisoformat(inst["expires_at"])
-                    if datetime.now() < expires:
+                    # Check if not expired. A malformed/missing expires_at must
+                    # not crash the whole progress pass: treat it as expired so
+                    # a corrupted instance file is simply skipped (mirrors the
+                    # analytics.py malformed-date tolerance).
+                    expires_raw = inst.get("expires_at")
+                    try:
+                        expires = datetime.fromisoformat(expires_raw) if expires_raw else None
+                    except (ValueError, TypeError):
+                        expires = None
+                    if expires is not None and datetime.now() < expires:
                         inst["_file"] = str(f)
                         active_instances.append(inst)
             except (json.JSONDecodeError, OSError):

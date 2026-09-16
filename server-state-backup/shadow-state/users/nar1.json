@@ -1,0 +1,117 @@
+{
+  "id": "nar1",
+  "displayName": "Narrator",
+  "pwHash": "400fb1c38f379afa2b71a23c82163540257395e7390c5ddd2a1baf46a2b39443",
+  "salt": "8f1be9193b34d3f49d2804e763641b2c",
+  "player": {
+    "name": "Narrator",
+    "title": "E 级猎人",
+    "level": 1,
+    "exp": 24,
+    "expToNext": 100,
+    "hp": 100,
+    "mp": 100,
+    "stats": {
+      "strength": 10,
+      "agility": 10,
+      "sense": 10,
+      "vitality": 10,
+      "intelligence": 10
+    },
+    "statPoints": 0,
+    "gold": 10,
+    "gems": 0,
+    "soldiers": [],
+    "achievements": [
+      "hello_world"
+    ],
+    "bosses_defeated": [],
+    "inventory": [],
+    "titleSuffixes": [],
+    "guildJoined": false,
+    "guildCreated": false,
+    "guildTasksCompleted": 0,
+    "guildBossesDefeated": 0,
+    "totalGoldEarned": 10,
+    "streak": 0,
+    "combo": 0,
+    "totalExp": 24,
+    "commitCount": 0,
+    "doubleExpNext": 0,
+    "extraDungeonToday": 0,
+    "importHistory": [],
+    "healthData": {},
+    "readingData": {},
+    "browserData": {},
+    "integrationSettings": {
+      "health_enabled": false,
+      "reading_enabled": false,
+      "browser_enabled": false
+    },
+    "createdAt": "2026-05-09T18:25:42.907858",
+    "lastActive": "2026-05-09T18:25:42.907858",
+    "lastDaily": null,
+    "dailyProgress": {
+      "date": "2026-05-09",
+      "tasks": {
+        "daily_guitar": {
+          "id": "daily_guitar",
+          "name": "🎸 吉他",
+          "type": "guitar",
+          "target": 30,
+          "reward": 30,
+          "difficulty": "E",
+          "status": "active",
+          "current": 2
+        },
+        "emergency_guitar": {
+          "id": "emergency_guitar",
+          "name": "⚡ 吉他 (紧急挑战)",
+          "type": "guitar",
+          "target": 59,
+          "reward": 94,
+          "difficulty": "C",
+          "status": "active",
+          "current": 2
+        }
+      }
+    },
+    "dailyLog": [
+      {
+        "date": "2026-05-09",
+        "actions": [
+          {
+            "type": "guitar",
+            "quantity": 2,
+            "exp": 4
+          }
+        ],
+        "totalExp": 4,
+        "totalGold": 0,
+        "streak": 0,
+        "level": 1
+      }
+    ],
+    "onboarded": true,
+    "skillConfig": {
+      "skills": [
+        {
+          "id": "guitar",
+          "name": "吉他",
+          "category": "音乐",
+          "unit": "分钟",
+          "icon": "🎸",
+          "exp_formula": "linear",
+          "exp_per_unit": 2,
+          "daily_cap": 120,
+          "daily_target": 30
+        }
+      ],
+      "templateUsed": null
+    },
+    "logs": [],
+    "username": "nar1"
+  },
+  "createdAt": "2026-05-09T18:25:42.907889",
+  "lastLogin": "2026-05-09T18:25:42.965749"
+}

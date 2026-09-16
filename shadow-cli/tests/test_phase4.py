@@ -129,6 +129,39 @@ class TestHealthImportJSON(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(result["entries_processed"], 0)
 
+    def test_import_health_malformed_numeric_skipped(self):
+        """Malformed numeric fields skip that entry instead of crashing the import."""
+        data = {"data": [
+            {"date": "2026-05-01", "steps": "abc", "exerciseMinutes": 10},
+            {"date": "2026-05-02", "steps": None},
+            {"date": "2026-05-03", "steps": 5000, "exerciseMinutes": 0, "sleepHours": 0},
+        ]}
+        result = import_health_json(self.player, self._write_json(data))
+        self.assertTrue(result["success"])
+        self.assertEqual(result["entries_processed"], 1)
+        self.assertIn("2026-05-03", self.player.get("healthData", {}))
+        self.assertNotIn("2026-05-01", self.player.get("healthData", {}))
+
+    def test_import_health_non_finite_skipped(self):
+        """JSON Infinity/NaN numerics skip that entry instead of crashing the import.
+
+        json.load accepts the non-standard Infinity/NaN literals: int(inf)
+        raised OverflowError (uncaught) and NaN sleepHours blew up later in
+        _calculate_health_exp -> int(), aborting the whole import.
+        """
+        data = {"data": [
+            {"date": "2026-05-01", "steps": float("inf")},
+            {"date": "2026-05-02", "steps": 5000, "sleepHours": float("inf")},
+            {"date": "2026-05-03", "steps": 5000, "sleepHours": float("nan")},
+            {"date": "2026-05-04", "steps": 5000, "exerciseMinutes": 0, "sleepHours": 0},
+        ]}
+        result = import_health_json(self.player, self._write_json(data))
+        self.assertTrue(result["success"])
+        self.assertEqual(result["entries_processed"], 1)
+        self.assertIn("2026-05-04", self.player.get("healthData", {}))
+        for bad in ("2026-05-01", "2026-05-02", "2026-05-03"):
+            self.assertNotIn(bad, self.player.get("healthData", {}))
+
 
 class TestHealthImportCSV(unittest.TestCase):
     """Test health data CSV import."""
@@ -162,6 +195,23 @@ class TestHealthImportCSV(unittest.TestCase):
         ]
         result = import_health_csv(self.player, self._write_csv(rows))
         self.assertEqual(result["entries_processed"], 2)
+
+    def test_import_health_csv_non_finite_skipped(self):
+        """Non-finite sleep_hours strings ("inf"/"nan") skip the row, not abort.
+
+        float("inf") succeeds, and int(inf * config) later raised OverflowError
+        outside the row-level try/except, crashing the whole CSV import.
+        """
+        rows = [
+            {"date": "2026-05-01", "steps": "6000", "exercise_minutes": "15", "sleep_hours": "inf"},
+            {"date": "2026-05-02", "steps": "6000", "exercise_minutes": "15", "sleep_hours": "nan"},
+            {"date": "2026-05-03", "steps": "6000", "exercise_minutes": "15", "sleep_hours": "7"},
+        ]
+        result = import_health_csv(self.player, self._write_csv(rows))
+        self.assertTrue(result["success"])
+        self.assertEqual(result["entries_processed"], 1)
+        self.assertIn("2026-05-03", self.player.get("healthData", {}))
+        self.assertNotIn("2026-05-01", self.player.get("healthData", {}))
 
 
 class TestHealthManual(unittest.TestCase):
@@ -259,6 +309,35 @@ class TestReadingImportJSON(unittest.TestCase):
         """Invalid file should return error."""
         result = import_reading_json(self.player, "/nonexistent/path.json")
         self.assertFalse(result["success"])
+
+    def test_import_reading_malformed_numeric_skipped(self):
+        """Malformed numeric fields skip that entry instead of crashing the import."""
+        data = {"records": [
+            {"date": "2026-05-01", "minutes": "abc", "pages": 20},
+            {"date": "2026-05-02", "minutes": None, "pages": None},
+            {"date": "2026-05-03", "minutes": 30, "pages": 20, "book": "Book"},
+        ]}
+        result = import_reading_json(self.player, self._write_json(data))
+        self.assertTrue(result["success"])
+        self.assertEqual(result["entries_processed"], 1)
+        self.assertIn("2026-05-03", self.player.get("readingData", {}))
+
+    def test_import_reading_non_finite_skipped(self):
+        """JSON Infinity/NaN numerics skip that entry instead of crashing.
+
+        int(inf) from JSON's non-standard Infinity literal raised OverflowError,
+        which the previous (ValueError, TypeError) guard did not catch.
+        """
+        data = {"records": [
+            {"date": "2026-05-01", "minutes": float("inf")},
+            {"date": "2026-05-02", "minutes": float("nan"), "pages": 10},
+            {"date": "2026-05-03", "minutes": 30, "pages": 20, "book": "Book"},
+        ]}
+        result = import_reading_json(self.player, self._write_json(data))
+        self.assertTrue(result["success"])
+        self.assertEqual(result["entries_processed"], 1)
+        self.assertIn("2026-05-03", self.player.get("readingData", {}))
+        self.assertNotIn("2026-05-01", self.player.get("readingData", {}))
 
 
 class TestReadingImportCSV(unittest.TestCase):
@@ -362,6 +441,46 @@ class TestBrowserImportJSON(unittest.TestCase):
         """Invalid file should return error."""
         result = import_browser_data(self.player, "/nonexistent/path.json")
         self.assertFalse(result["success"])
+
+    def test_import_browser_malformed_numeric_skipped(self):
+        """Malformed numeric fields skip that entry instead of crashing the import.
+
+        Before the fix, int(entry.get("minutes", ...)) ran unguarded: a string
+        like "abc" raised ValueError, null raised TypeError (and a JSON
+        Infinity/NaN literal raised OverflowError/ValueError), which escaped
+        cmd_browser_import and aborted the whole CLI command. Health/reading
+        imports were already hardened; browser was missed.
+        """
+        data = {"entries": [
+            {"date": "2026-05-01", "site": "leetcode.com", "minutes": "abc"},
+            {"date": "2026-05-02", "site": "leetcode.com", "minutes": None},
+            {"date": "2026-05-03", "site": "leetcode.com", "minutes": 30},
+        ]}
+        result = import_browser_data(self.player, self._write_json(data))
+        self.assertTrue(result["success"])
+        self.assertEqual(result["entries_processed"], 1)
+        self.assertIn("2026-05-03", self.player.get("browserData", {}))
+        self.assertNotIn("2026-05-01", self.player.get("browserData", {}))
+        self.assertNotIn("2026-05-02", self.player.get("browserData", {}))
+
+    def test_import_browser_non_finite_skipped(self):
+        """JSON Infinity/NaN minutes skip that entry instead of crashing.
+
+        json.load accepts the non-standard Infinity/NaN literals; int(inf)
+        raised OverflowError (uncaught) and aborted the entire import.
+        """
+        data = {"entries": [
+            {"date": "2026-05-01", "site": "leetcode.com", "minutes": float("inf")},
+            {"date": "2026-05-02", "site": "leetcode.com", "minutes": float("nan")},
+            {"date": "2026-05-03", "site": "leetcode.com", "minutes": 30},
+        ]}
+        result = import_browser_data(self.player, self._write_json(data))
+        self.assertTrue(result["success"])
+        self.assertEqual(result["entries_processed"], 1)
+        self.assertIn("2026-05-03", self.player.get("browserData", {}))
+        for bad in ("2026-05-01", "2026-05-02"):
+            self.assertNotIn(bad, self.player.get("browserData", {}))
+        self.assertGreater(result["total_exp"], 0)
 
 
 class TestBrowserManual(unittest.TestCase):

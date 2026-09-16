@@ -8,6 +8,7 @@ import threading
 import unittest
 import urllib.request
 import urllib.parse
+import urllib.error
 from http.server import HTTPServer
 
 import sys, os
@@ -54,6 +55,15 @@ class TestWebAPI(unittest.TestCase):
                 return json.loads(r.read().decode())
         except urllib.error.HTTPError as e:
             return json.loads(e.read().decode())
+
+    def _get_status(self, path):
+        """GET and return (status, parsed_json), tolerating HTTP errors."""
+        url = self.base + path
+        try:
+            with urllib.request.urlopen(url) as r:
+                return r.status, json.loads(r.read().decode())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read().decode())
 
     # ── Status ───────────────────────────────────────────────────────
 
@@ -494,11 +504,316 @@ class TestWebAPI(unittest.TestCase):
             self.assertIn("暗影君主", content)
             self.assertIn("tab-dashboard", content)
 
+    def test_mobile_viewport_meta_present(self):
+        """Served index.html includes viewport meta so mobile browsers scale correctly."""
+        url = self.base + "/"
+        with urllib.request.urlopen(url) as r:
+            content = r.read().decode()
+        self.assertIn(
+            'name="viewport"',
+            content,
+            "index.html must include a <meta name=viewport> tag for mobile rendering",
+        )
+        self.assertIn("width=device-width", content)
+
+    def test_mobile_responsive_css_media_queries(self):
+        """layout.css ships responsive breakpoints (768px tablet / 480px phone)."""
+        with urllib.request.urlopen(self.base + "/css/layout.css") as r:
+            css = r.read().decode()
+        self.assertIn("@media(max-width:768px)", css, "layout.css must stack layout on tablets")
+        self.assertIn("@media(max-width:480px)", css, "layout.css must adapt layout on phones")
+        # Mobile sidebar becomes a horizontal nav bar (flex row), not a fixed column.
+        self.assertIn("flex-direction:column", css, "mobile app shell must switch to column layout")
+
     def test_cors_headers(self):
         """API responses include CORS headers."""
         url = self.base + "/api/status"
         with urllib.request.urlopen(url) as r:
             self.assertIn("Access-Control-Allow-Origin", r.headers)
+
+    # ── Malformed-input robustness (bad numeric fields / bad chat bodies) ──
+
+    def test_record_bad_quantity_returns_400(self):
+        """/api/record with non-numeric quantity returns clean 400, not a crash."""
+        reset_player()
+        data = self._post("/api/record", {"type": "commit", "quantity": "abc"})
+        self.assertFalse(data["success"])
+
+    def test_record_bad_quantity_null_returns_400(self):
+        """/api/record with null quantity returns clean 400, not a crash."""
+        reset_player()
+        data = self._post("/api/record", {"type": "commit", "quantity": None})
+        self.assertFalse(data["success"])
+
+    def test_health_bad_numbers_returns_400(self):
+        """/api/health with non-numeric steps returns clean 400, not a crash."""
+        reset_player()
+        data = self._post("/api/health", {"steps": "many", "exercise_min": 30, "sleep_hours": 8})
+        self.assertFalse(data["success"])
+
+    def test_health_infinite_sleep_returns_400_not_disconnect(self):
+        """A JSON `1e999` sleep parses to inf; must 400, not drop the link.
+
+        float("1e999") overflows to inf without raising (and JSON's Infinity
+        literal loads as inf), so _coerce_float returned inf; int(inf) then
+        raised OverflowError inside the health EXP calculation and the
+        connection was dropped with no response (RemoteDisconnected).
+        """
+        import http.client
+        reset_player()
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        conn.request(
+            "POST",
+            "/api/health",
+            body=b'{"steps":5000,"exercise":30,"sleep":1e999}',
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        data = json.loads(resp.read().decode())
+        conn.close()
+        self.assertEqual(resp.status, 400)
+        self.assertFalse(data.get("success"))
+
+    def test_health_nan_sleep_returns_400_not_disconnect(self):
+        """A JSON NaN sleep is rejected with a clean 400, not a dropped link."""
+        import http.client
+        reset_player()
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        conn.request(
+            "POST",
+            "/api/health",
+            body=b'{"steps":5000,"sleep":NaN}',
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        data = json.loads(resp.read().decode())
+        conn.close()
+        self.assertEqual(resp.status, 400)
+        self.assertFalse(data.get("success"))
+
+    def test_health_valid_sleep_still_works(self):
+        """A finite numeric sleep value keeps working after hardening."""
+        reset_player()
+        data = self._post("/api/health", {"steps": 5000, "exercise": 30, "sleep": 8})
+        self.assertTrue(data["success"])
+
+    def test_reading_bad_numbers_returns_400(self):
+        """/api/reading with non-numeric minutes returns clean 400, not a crash."""
+        reset_player()
+        data = self._post("/api/reading", {"minutes": "lots", "pages": 10})
+        self.assertFalse(data["success"])
+
+    def test_browser_bad_numbers_returns_400(self):
+        """/api/browser with non-numeric minutes returns clean 400, not a crash."""
+        reset_player()
+        data = self._post("/api/browser", {"site": "leetcode.com", "minutes": "many"})
+        self.assertFalse(data["success"])
+
+    def test_allocate_stat_bad_amount_returns_400(self):
+        """/api/allocate-stat with non-numeric amount returns clean 400, not a crash."""
+        reset_player()
+        player = load_player()
+        player["statPoints"] = 5
+        save_player(player)
+        data = self._post("/api/allocate-stat", {"stat": "str", "amount": "xx"})
+        self.assertFalse(data["success"])
+
+    def test_chat_malformed_messages_return_400(self):
+        """Chat endpoint rejects non-list / non-dict messages with clean 400s."""
+        reset_player()
+        for bad_messages in ("hi", {"role": "user", "content": "hi"}, [1, 2, 3], "nope"):
+            data = self._post("/v1/chat/completions", {"messages": bad_messages})
+            self.assertIn("error", data)
+
+    def test_chat_non_string_content_returns_400(self):
+        """Chat endpoint ignores non-string message content (no crash)."""
+        reset_player()
+        data = self._post("/v1/chat/completions", {"messages": [{"role": "user", "content": 123}]})
+        self.assertIn("error", data)
+
+    # ── Malformed GET query params (days / offset) ────────────────────────
+
+    def test_summary_bad_days_query_returns_400(self):
+        """Summary GET endpoints reject non-numeric ?days= with a clean 400."""
+        reset_player()
+        for path in ("/api/health-summary?days=abc",
+                     "/api/reading-summary?days=abc",
+                     "/api/browser-summary?days=abc"):
+            status, data = self._get_status(path)
+            self.assertEqual(status, 400, path)
+            self.assertFalse(data["success"], path)
+
+    def test_analytics_bad_query_params_return_400(self):
+        """Analytics GET endpoints reject non-numeric ?offset=/?days= with 400."""
+        reset_player()
+        for path in ("/api/analytics/weekly?offset=abc",
+                     "/api/analytics/monthly?offset=abc",
+                     "/api/analytics/breakdown?days=abc"):
+            status, data = self._get_status(path)
+            self.assertEqual(status, 400, path)
+            self.assertFalse(data["success"], path)
+
+    def test_valid_numeric_query_params_still_work(self):
+        """Well-formed ?days=/?offset= keep working after hardening."""
+        reset_player()
+        for path in ("/api/health-summary?days=3",
+                     "/api/reading-summary?days=3",
+                     "/api/browser-summary?days=3",
+                     "/api/analytics/weekly?offset=0",
+                     "/api/analytics/monthly?offset=0",
+                     "/api/analytics/breakdown?days=7"):
+            status, data = self._get_status(path)
+            self.assertEqual(status, 200, path)
+
+    def test_malformed_content_length_does_not_crash(self):
+        """A non-numeric Content-Length header must not drop the connection."""
+        import http.client
+        reset_player()
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        conn.putrequest("POST", "/api/record")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", "abc")
+        conn.endheaders()
+        resp = conn.getresponse()
+        self.assertIn(resp.status, (200, 400))
+        resp.read()
+        conn.close()
+
+    def test_activities_infinite_quantity_returns_400(self):
+        """A JSON `1e999` quantity parses to inf; must 400, not drop the link.
+
+        `int(float("inf"))` raises OverflowError, which the previous inline
+        try/except (TypeError, ValueError) did not catch, so the exception
+        escaped and the connection was dropped. Mirrors _coerce_int hardening.
+        """
+        import http.client
+        reset_player()
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        conn.request(
+            "POST",
+            "/api/activities",
+            body=b'{"activities":[{"type":"coding","quantity":1e999}]}',
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        data = json.loads(resp.read().decode())
+        conn.close()
+        self.assertEqual(resp.status, 400)
+        self.assertFalse(data.get("success"))
+        self.assertTrue(data.get("errors"))
+
+    def test_activities_valid_quantity_still_works(self):
+        """A normal numeric activity list keeps working after hardening."""
+        reset_player()
+        data = self._post("/api/activities", {"activities": [{"type": "commit", "quantity": 2}]})
+        self.assertTrue(data["success"])
+        self.assertEqual(data["count"], 1)
+        self.assertEqual(data["results"][0]["quantity"], 2)
+
+    # ── Non-object JSON bodies on POST endpoints ──────────────────────────
+
+    def test_non_object_json_body_returns_400_not_disconnect(self):
+        """POST endpoints must 400 on a JSON array body, not drop the socket.
+
+        ``body.get(...)`` on a list/string/number raises AttributeError, which
+        escaped the handler and dropped the connection with no HTTP response
+        (RemoteDisconnected). Every object-body endpoint must instead reply 400.
+        """
+        import http.client
+        reset_player()
+        endpoints = [
+            "/api/summon", "/api/legion", "/api/buy", "/api/sell",
+            "/api/enter-dungeon", "/api/scan-git", "/api/scan-files",
+            "/api/integrations/enable", "/api/integrations/disable",
+            "/api/auth/login", "/api/auth/register",
+            "/api/guilds/create", "/api/guilds/disband", "/api/guilds/join",
+            "/api/guilds/leave", "/api/guilds/info", "/api/guilds/transfer",
+            "/api/guilds/kick", "/api/guilds/promote", "/api/guilds/start-task",
+            "/api/guilds/contribute", "/api/guilds/start-battle",
+            "/api/guilds/deal-damage",
+            "/api/onboard/configure", "/api/onboard/save",
+        ]
+        for ep in endpoints:
+            conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+            try:
+                conn.request("POST", ep, body=b'[]',
+                             headers={"Content-Type": "application/json"})
+                resp = conn.getresponse()
+                data = json.loads(resp.read().decode())
+            except http.client.RemoteDisconnected:
+                self.fail(f"{ep} dropped the connection on a non-object JSON body")
+            finally:
+                conn.close()
+            self.assertEqual(resp.status, 400, ep)
+            self.assertFalse(data.get("success"), ep)
+            self.assertIn("JSON", data.get("message", ""), ep)
+
+    def test_object_json_body_still_works_after_guard(self):
+        """Well-formed JSON object bodies keep their normal behavior."""
+        reset_player()
+        status, data = self._post_status("/api/auth/login",
+                                         {"username": "no_such_user", "password": "x"})
+        self.assertEqual(status, 401)
+        self.assertFalse(data.get("success"))
+
+        status, data = self._post_status("/api/guilds/info", {"guildId": "no-such-guild"})
+        self.assertEqual(status, 404)
+        self.assertFalse(data.get("success"))
+
+    def _post_status(self, path, body):
+        """POST a JSON object and return (status, parsed_json)."""
+        url = self.base + path
+        data = json.dumps(body).encode()
+        req = urllib.request.Request(url, data=data,
+                                     headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, json.loads(r.read().decode())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read().decode())
+
+    # ── Non-string credentials on auth endpoints ──────────────────────────
+
+    def test_non_string_credentials_do_not_drop_connection(self):
+        """Non-string username/password must 400/401, not drop the socket.
+
+        ``username.lower()`` raises AttributeError for a JSON number/list/null and
+        ``len(password)`` raises TypeError for a number, so these bodies escaped
+        the handler and the connection was closed with no HTTP response
+        (RemoteDisconnected). Measured pre-fix: 4 of the 6 bodies below dropped.
+        """
+        import http.client
+        reset_player()
+        cases = [
+            ("/api/auth/register", {"username": 123, "password": "abcd"}, 400),
+            ("/api/auth/register", {"username": "newuser", "password": 1234}, 400),
+            ("/api/auth/register", {"username": ["a", "b"], "password": "abcd"}, 400),
+            ("/api/auth/register", {"username": None, "password": "abcd"}, 400),
+            ("/api/auth/login", {"username": 123, "password": "abcd"}, 401),
+            ("/api/auth/login", {"username": "x", "password": 1234}, 401),
+        ]
+        for path, body, expected in cases:
+            conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+            try:
+                conn.request("POST", path, body=json.dumps(body).encode(),
+                             headers={"Content-Type": "application/json"})
+                resp = conn.getresponse()
+                data = json.loads(resp.read().decode())
+            except http.client.RemoteDisconnected:
+                self.fail(f"{path} {body} dropped the connection")
+            finally:
+                conn.close()
+            self.assertEqual(resp.status, expected, f"{path} {body}")
+            self.assertFalse(data.get("success"), f"{path} {body}")
+
+    def test_chat_valid_request_returns_completion(self):
+        """Chat endpoint still returns a valid completion for well-formed input."""
+        reset_player()
+        data = self._post("/v1/chat/completions", {
+            "messages": [{"role": "user", "content": "我的状态"}],
+        })
+        self.assertEqual(data["object"], "chat.completion")
+        self.assertIn("暗影君主", data["choices"][0]["message"]["content"])
 
 
 if __name__ == "__main__":
